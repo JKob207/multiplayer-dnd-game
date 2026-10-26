@@ -4,6 +4,7 @@ import type { SubmitEvent } from 'react';
 
 type LoginProps = {
   onSwitch: () => void;
+  onSuccess: () => void;
 };
 
 type AuthResponse = {
@@ -11,7 +12,7 @@ type AuthResponse = {
   token: string;
 };
 
-export default function Login({ onSwitch }: LoginProps) {
+export default function Login({ onSwitch, onSuccess }: LoginProps) {
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -44,6 +45,8 @@ export default function Login({ onSwitch }: LoginProps) {
         localStorage.setItem("accessToken", data.token);
         socket.auth = { token: data.token };
         socket.connect();
+
+        onSuccess();
       })
       .catch(e => console.error(e));
 
