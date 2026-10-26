@@ -1,7 +1,8 @@
 
 import { useState } from 'react';
 import './Lobby.css';
-
+import { socket } from '../../socket';
+import type { Room } from "../../../../shared/interfaces"
 type LobbyProps = {
   onLogout: () => void;
 };
@@ -10,18 +11,33 @@ export default function Lobby({ onLogout }: LobbyProps) {
   const [roomCode, setRoomCode] = useState('');
   const [message, setMessage] = useState('');
   const [showJoin, setShowJoin] = useState(false);
+  const [room, setRoom] = useState<Room | undefined>();
 
+  socket.on("room-updated", update => {
+    setRoom(update);
+  })
   function handleJoin() {
-  if (roomCode.length !== 6) {
-    setMessage('Please enter a 6-character room code.');
-    return;
+    if (roomCode.length !== 6) {
+      setMessage('Please enter a 6-character room code.');
+      return;
+    }
+
+    socket.emit("join-room", roomCode, res => {
+      if (!res.success) {
+        setMessage('Theres no such room.');
+        return;
+      }
+
+      setRoom(res.room);
+      console.log(res.room);
+    })
   }
 
-  setMessage(`Joining room ${roomCode} — coming soon!`);
-}
-
   function handleCreate() {
-    setMessage('Create Lobby — coming soon!');
+    socket.emit("create-room", res => {
+      setRoom(res.room);
+      console.log(res.room);
+    })
   }
 
   return (
@@ -53,9 +69,9 @@ export default function Lobby({ onLogout }: LobbyProps) {
                 onChange={(event) => {
                   setRoomCode(
                     event.target.value
-                        .replace(/[^a-zA-Z0-9]/g, '')
-                        .toUpperCase()
-                    );
+                      .replace(/[^a-zA-Z0-9]/g, '')
+                      .toUpperCase()
+                  );
                   setMessage('');
                 }}
                 onKeyDown={(event) => {
@@ -83,6 +99,17 @@ export default function Lobby({ onLogout }: LobbyProps) {
             {message}
           </p>
         )}
+
+        {room && (
+          <p className="lobby-message" role="status">
+            {room.users.map(user => (
+              <span key={user.id}>
+                {user.username} 
+              </span>
+            ))}
+          </p>
+        )}
+
       </div>
 
       <button

@@ -7,7 +7,8 @@ import dotenv from "dotenv";
 import jwt, { type JwtPayload, type VerifyErrors } from "jsonwebtoken";
 import { createServer } from "http";
 import { Server, Socket } from "socket.io";
-import type { ClientToServerEvents, InterServerEvents, Room, ServerToClientEvents, SocketData } from "./interfaces.js";
+import type { InterServerEvents, SocketData } from "./interfaces.js";
+import type { ClientToServerEvents, Room, ServerToClientEvents } from "./../shared/interfaces.js"
 import cors from "cors";
 import genUniqueLobbyCode from "./functions/genLobbyCode.js";
 
@@ -165,7 +166,7 @@ io.use((socket, next) => {
         jwt.verify(token, JWTsecret, (err: VerifyErrors | null, decoded: string | JwtPayload | undefined) => {
             if (err) return next(new Error("Invalid token."));
             if(decoded && typeof decoded !== "string"){
-                socket.data.user = decoded;
+                socket.data.user = decoded.data;
             }
             next();
         });
@@ -181,6 +182,7 @@ io.on("connection", (socket) => {
     console.log("established websocket connection:  " + socket.id);
 
     socket.on("create-room", (callback) => {
+        if(socket.rooms.size >= 2) return;
         const roomId = genUniqueLobbyCode(rooms);
         const room:Room = {
             id: roomId,
@@ -198,7 +200,7 @@ io.on("connection", (socket) => {
 
     socket.on("join-room", (roomId, callback) => {
         const room = rooms.get(roomId);
-        if(room){
+        if(room && !room.users.some(user => user.id === socket.id) && room.users.length < room.maxPlayers){
             const updated: Room = {
                 id: roomId,
                 users: [...room.users.values(), {id: socket.id, username: socket.data.user.name, host: false}],
@@ -210,11 +212,10 @@ io.on("connection", (socket) => {
             socket.join(roomId);
 
             callback({success: true, room: updated});
-            io.to(roomId).except(socket.id).emit("room-updated", updated);
+            socket.to(roomId).emit("room-updated", updated);
         }else{
-            callback({success: false, message: `Room with room id: ${roomId}, does not exist.`})
+            callback({success: false, message: `Room with room id: ${roomId} is full or does not exist.`})
         }
-
     })
 
 })

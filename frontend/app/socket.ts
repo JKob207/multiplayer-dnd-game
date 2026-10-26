@@ -1,6 +1,7 @@
-import { io } from "socket.io-client";
+import { io, Socket } from "socket.io-client";
+import type { ClientToServerEvents, ServerToClientEvents } from "./../../shared/interfaces.js"
 
-export const socket = io("http://localhost:3000", {
+export const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io("http://localhost:3000", {
     auth: {
         token: localStorage.getItem("accessToken")
     },
