@@ -1,12 +1,22 @@
 import { useState } from "react";
-import { socket } from "../../socket";
+import { socket } from "../../socket.js";
+import type { SubmitEvent } from 'react';
 
-export default function Login({ onSwitch }) {
+type LoginProps = {
+  onSwitch: () => void;
+};
+
+type AuthResponse = {
+  message: string;
+  token: string;
+};
+
+export default function Login({ onSwitch }: LoginProps) {
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  function handleSubmit(event) {
+ const handleSubmit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     setError("")
@@ -29,10 +39,10 @@ export default function Login({ onSwitch }) {
 
         throw new Error('connection error.')
       })
-      .then(data => {
+      .then((data : AuthResponse)=> {
         console.log(data.message);
-        localStorage.setItem("accessToken", JSON.stringify(data.token));
-        socket.auth.token = data.token;
+        localStorage.setItem("accessToken", data.token);
+        socket.auth = { token: data.token };
         socket.connect();
       })
       .catch(e => console.error(e));
