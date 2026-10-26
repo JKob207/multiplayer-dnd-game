@@ -1,0 +1,50 @@
+.parallax-background {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.parallax-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  width: 200%;
+  height: 100%;
+  animation: scroll-left var(--duration) linear infinite;
+  will-change: transform;
+}
+.parallax-track img, .static-img {
+  image-rendering: pixelated;
+}
+.static-img{
+ display: block;
+ height: 100%;
+ width: 100%;
+ object-fit: fill;
+ flex: 0 0 50%;
+}
+.parallax-track img {
+  display: block;
+  flex: 0 0 50%;
+  width: 50%;
+  height: 100%;
+  object-fit: fill;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+@keyframes scroll-left {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
