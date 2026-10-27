@@ -1,19 +1,44 @@
 import { useState } from "react";
+import { socket } from "../../socket";
 
-export default function Login({ onSwitch }){
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
+export default function Login({ onSwitch }) {
+  const [login, setLogin] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
 
-    function handleSubmit(event) {
+  function handleSubmit(event) {
     event.preventDefault();
 
-    console.log("Email:", email);
+    setError("")
+    console.log("Login:", login);
     console.log("Password submitted");
 
-    setEmail("");
-    setPassword("");
+    fetch("http://localhost:3000/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ login, password }),
+    })
+      .then(async res => {
+        if (res.ok) {
+          return res.json();
+        }
+        const data = await res.json();
+        setError(data.message);
 
-    //TODO connect to backend.
+        throw new Error('connection error.')
+      })
+      .then(data => {
+        console.log(data.message);
+        localStorage.setItem("accessToken", JSON.stringify(data.token));
+        socket.auth.token = data.token;
+        socket.connect();
+      })
+      .catch(e => console.error(e));
+
+    setLogin("");
+    setPassword("");
   }
 
   return (
@@ -22,13 +47,13 @@ export default function Login({ onSwitch }){
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label htmlFor="email">Email address</label>
+          <label htmlFor="login">Login</label>
           <input
-            id="email"
-            type="email"
-            placeholder="Enter your email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            id="login"
+            type="text"
+            placeholder="Enter your name or email"
+            value={login}
+            onChange={(event) => setLogin(event.target.value)}
             autoComplete="email"
             required
           />
@@ -46,16 +71,20 @@ export default function Login({ onSwitch }){
             required
           />
         </div>
-
+        {error && (
+          <div className="form-group">
+            <p style={{ color: "red" }}>{error}</p>
+          </div>
+        )}
         <button type="submit">Log In</button>
       </form>
 
-     <p>
-    Don't have an account?{" "}
-    <button className="switch-button" type="button" onClick={onSwitch}>
-        Register
-    </button>
-</p>
+      <p>
+        Don't have an account?{" "}
+        <button className="switch-button" type="button" onClick={onSwitch}>
+          Register
+        </button>
+      </p>
     </div>
   );
 }
