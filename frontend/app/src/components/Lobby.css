@@ -1,3 +1,4 @@
+
 .lobby {
   position: absolute;
   inset: 0;
@@ -5,7 +6,6 @@
   height: 100%;
   box-sizing: border-box;
   color: #f5f3ee;
-  font-family: 'Iceberg';
   pointer-events: none;
 }
 
@@ -160,4 +160,156 @@
     right: 3%;
     padding: 8px;
   }
+}
+
+
+/* Room view — match the original lobby */
+
+.room-view {
+  position: absolute;
+  top: 5%;
+  bottom: 5%;
+  left: 34%;
+  width: 32%;
+  box-sizing: border-box;
+  padding: 0 20px 20px;
+  overflow-y: auto;
+  text-align: center;
+
+  background: rgba(12, 12, 14, 0.83);
+  border: 1px solid rgba(30, 25, 24, 0.45);
+
+  pointer-events: auto;
+}
+
+.room-view h1 {
+  margin: 3px 0 18px;
+  font-size: clamp(22px, 3.1vw, 32px);
+  line-height: 1.4;
+  font-weight: 400;
+}
+
+/* Room code */
+
+.room-code-panel,
+.players-panel {
+  margin: 16px 0;
+  padding: 12px;
+
+  background: rgba(22, 21, 22, 0.45);
+  border: 1px solid rgba(30, 25, 24, 0.45);
+}
+
+.room-code-panel p {
+  margin: 0;
+  font-size: 18px;
+  opacity: 0.8;
+}
+
+.room-code-panel h2 {
+  margin: 10px 0;
+  color: #f5f3ee;
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 400;
+  letter-spacing: 5px;
+  overflow-wrap: anywhere;
+}
+
+/* Players */
+
+.players-panel h2 {
+  margin: 0 0 12px;
+  font-size: clamp(20px, 2.5vw, 26px);
+  font-weight: 400;
+}
+
+.player-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.player-row {
+  padding: 9px 10px;
+  text-align: left;
+  color: #f5f3ee;
+  background: rgba(12, 12, 14, 0.55);
+  border: 1px solid rgba(30, 25, 24, 0.4);
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+
+/* Waiting message */
+
+.waiting-message {
+  margin: 18px 0;
+  font-size: 18px;
+  color: #c5beb4;
+}
+
+/* Buttons use the existing lobby button styling */
+
+.room-view button {
+  width: 100%;
+  margin-top: 8px;
+  border-color: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.room-view button:hover {
+  background: rgba(65, 54, 45, 0.95);
+  border-color: rgba(192, 159, 113, 0.45);
+}
+
+/* Mobile */
+
+@media (max-width: 600px) {
+  .room-view {
+    left: 5%;
+    width: 58%;
+    padding: 0 10px 16px;
+  }
+
+  .room-view h1 {
+    font-size: clamp(18px, 4.5vw, 26px);
+  }
+}
+
+@media (max-width: 360px) {
+  .room-view {
+    left: 3%;
+    width: 63%;
+    padding-inline: 7px;
+  }
+}
+ 
+.lobby .leave-lobby-button {
+  position: absolute;
+  right: calc(12% + 130px);
+  bottom: 5%;
+  min-width: 110px;
+  font-size: clamp(20px, 2.5vw, 26px);
+  background: rgba(15, 14, 17, 0.75);
+}
+
+/* Keep the buttons aligned on smaller screens */
+
+@media (max-width: 600px) {
+  .lobby .leave-lobby-button {
+    right: calc(4% + 100px);
+    min-width: 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .lobby .leave-lobby-button {
+    right: calc(3% + 90px);
+    padding: 8px;
+  }
+}
+
+.room-view button.is-ready {
+  background: rgba(65, 54, 45, 0.95);
+  border-color: rgba(192, 159, 113, 0.45);
 }

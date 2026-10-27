@@ -186,7 +186,7 @@ io.on("connection", (socket) => {
         const roomId = genUniqueLobbyCode(rooms);
         const room:Room = {
             id: roomId,
-            users: [{id: socket.id, username: socket.data.user.name, host: true}],
+            users: [{id: socket.id, username: socket.data.user.name, host: true, ready: false}],
             maxPlayers: 4,
             status: "in-lobby",
         }
@@ -203,7 +203,7 @@ io.on("connection", (socket) => {
         if(room && !room.users.some(user => user.id === socket.id) && room.users.length < room.maxPlayers){
             const updated: Room = {
                 id: roomId,
-                users: [...room.users.values(), {id: socket.id, username: socket.data.user.name, host: false}],
+                users: [...room.users.values(), {id: socket.id, username: socket.data.user.name, host: false, ready: false}],
                 maxPlayers: room.maxPlayers,
                 status: room.status,
             }
