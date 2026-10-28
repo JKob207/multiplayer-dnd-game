@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 import Background from './components/Background.js'
 import Register from './components/Register.js'
@@ -7,6 +7,19 @@ import Lobby from './components/Lobby';
 import { socket } from '../socket';
 
 function App() {
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+
+    if(!token){
+      setShowRegister(true);
+    }
+
+    socket.auth = { token: token };
+    socket.connect();
+    
+    
+  }, []);
+
   const [showRegister, setShowRegister] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
    const [isAuthenticated, setIsAuthenticated] = useState(

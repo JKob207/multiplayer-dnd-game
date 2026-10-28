@@ -14,16 +14,31 @@ export default function Lobby({ onLogout }: LobbyProps) {
   const [room, setRoom] = useState<Room | undefined>();
   const [isReady, setIsReady] = useState(false);
 
+
   useEffect(() => {
-    const handleRoomUpdated = (update: Room) => {
+    const updateRoom = (update: Room) => {
       setRoom(update);
     };
 
-    socket.on('room-updated', handleRoomUpdated);
+    const restoreRoom = () => {
+      socket.emit('get-room', ({ room: currentRoom, isReady: currentUserReady }) => {
+        setRoom(currentRoom);
+        setIsReady(currentUserReady);
+      });
+    };
+
+    socket.on('room-updated', updateRoom);
+    socket.on('connect', restoreRoom);
+
+    if (socket.connected) {
+      restoreRoom();
+    }
 
     return () => {
-      socket.off('room-updated', handleRoomUpdated);
+      socket.off('room-updated', updateRoom);
+      socket.off('connect', restoreRoom);
     };
+
   }, []);
   function handleJoin() {
     if (roomCode.length !== 6) {
@@ -43,6 +58,11 @@ export default function Lobby({ onLogout }: LobbyProps) {
     })
   }
 
+  function onLogoutExtended(){
+    handleLeavingLobby();
+    onLogout();
+  }
+
   function handleCreate() {
     socket.emit("create-room", res => {
       setRoom(res.room);
@@ -53,11 +73,10 @@ export default function Lobby({ onLogout }: LobbyProps) {
   function handleReady() {
     if (!room) return;
 
-    socket.emit("start-game", res => {
+    socket.emit("toggle-ready", res => {
       if (res.success) {
         setRoom(res.room);
-        const me = room.users.find(user => user.id === socket.id);
-        setIsReady(me?.ready || false);
+        setIsReady((previous) => !previous);
       }
     })
   }
@@ -147,7 +166,7 @@ export default function Lobby({ onLogout }: LobbyProps) {
 
             <div className="player-list">
               {room.users.map((user) => (
-                <div className="player-row" key={user.id}>
+                <div className="player-row" key={user.username}>
                   <span>
                     {user.username}
                     {' '}
@@ -217,7 +236,7 @@ export default function Lobby({ onLogout }: LobbyProps) {
       <button
         className="logout-button"
         type="button"
-        onClick={onLogout}
+        onClick={onLogoutExtended}
       >
         Log Out
       </button>

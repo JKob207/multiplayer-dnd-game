@@ -2,20 +2,22 @@ POST http://localhost:3000/register HTTP/1.1
 content-type: application/json
 
 {
-    "name":"ff",
+    "name":"keusz",
     "email": "mafassff.com",
     "password": "zaq1@WSX"
 }
 
 ###
 
-POST http://localhost:3000/login HTTP/1.1
+POST http://localhost:3000/register HTTP/1.1
 content-type: application/json
 
 {
-    "login":"mafassff.com",
+    "name":"mauro",
+    "email": "asda.com",
     "password": "zaq1@WSX"
 }
+
 
 ###
 

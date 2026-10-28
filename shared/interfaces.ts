@@ -2,7 +2,6 @@
 export interface Room {
     id: string;
     users: {
-        id: string; // socket.id
         username: string;
         host: boolean;
         ready: boolean;
@@ -12,6 +11,13 @@ export interface Room {
 }
 
 export interface ClientToServerEvents {
+    "get-room": (
+        callback: (response: {
+            room: Room | undefined;
+            isReady: boolean;
+        }) => void
+    ) => void;
+
     "create-room": (
         callback: (response: {
             success: boolean;
@@ -28,7 +34,7 @@ export interface ClientToServerEvents {
         }) => void
     ) => void;
 
-    "start-game": (
+    "toggle-ready": (
         callback: (response: {
             success: boolean;
             room: Room;

@@ -20,6 +20,7 @@ app.use(express.json());
 app.use(cors())
 const httpServer = createServer(app);
 const rooms = new Map<string, Room>();
+const userRoomIndex = new Map<string, string>();
 
 app.post("/register", async (req, res) => {
     let message = "Something went wrong with the server. We are sorry.";
@@ -178,20 +179,45 @@ io.use((socket, next) => {
 
 })
 
+io.use((socket, next) => {
+    const roomId = userRoomIndex.get(socket.data.user.name);
+    const room = rooms.get(roomId || "");
+    if(!roomId || !room) return next();
+    
+
+    socket.join(roomId);
+    next();
+})
+
 io.on("connection", (socket) => {
     console.log("established websocket connection:  " + socket.id);
+
+    const roomId = userRoomIndex.get(socket.data.user.name);
+    const room = rooms.get(roomId || "");
+
+    if(room && roomId){
+        socket.to(roomId).emit("room-updated", room);
+    }
+
+    socket.on("get-room", (callback) => {
+        const currentRoomId = userRoomIndex.get(socket.data.user.name);
+        const currentRoom = rooms.get(currentRoomId || "");
+        const currentUser = currentRoom?.users.find(user => user.username === socket.data.user.name);
+        callback({ room: currentRoom, isReady: currentUser?.ready ?? false });
+    });
 
     socket.on("create-room", (callback) => {
         if (socket.rooms.size >= 2) return;
         const roomId = genUniqueLobbyCode(rooms);
         const room: Room = {
             id: roomId,
-            users: [{ id: socket.id, username: socket.data.user.name, host: true, ready: false }],
+            users: [{ username: socket.data.user.name, host: true, ready: false }],
             maxPlayers: 4,
             status: "in-lobby",
         }
 
         rooms.set(roomId, room);
+        userRoomIndex.set(socket.data.user.name, roomId);
         socket.join(roomId);
 
         callback({ success: true, room });
@@ -200,15 +226,16 @@ io.on("connection", (socket) => {
 
     socket.on("join-room", (roomId, callback) => {
         const room = rooms.get(roomId);
-        if (room && !room.users.some(user => user.id === socket.id) && room.users.length < room.maxPlayers) {
+        if (room && !room.users.some(user => user.username === socket.data.user.name) && room.users.length < room.maxPlayers) {
             const updated: Room = {
                 id: roomId,
-                users: [...room.users.values(), { id: socket.id, username: socket.data.user.name, host: false, ready: false }],
+                users: [...room.users.values(), { username: socket.data.user.name, host: false, ready: false }],
                 maxPlayers: room.maxPlayers,
                 status: room.status,
             }
 
             rooms.set(roomId, updated);
+            userRoomIndex.set(socket.data.user.name, roomId);
             socket.join(roomId);
 
             callback({ success: true, room: updated });
@@ -218,7 +245,7 @@ io.on("connection", (socket) => {
         }
     })
 
-    socket.on("start-game", (callback) => {
+    socket.on("toggle-ready", (callback) => {
         const rs = Array.from(socket.rooms);
         const roomId = rs.find(id => id !== socket.id);
 
@@ -227,7 +254,7 @@ io.on("connection", (socket) => {
         if (!room) return;
 
         const updatedUsers = room.users.map(user => {
-            if (user.id === socket.id) {
+            if (user.username === socket.data.user.name) {
                 return { ...user, ready: !user.ready }
             }
             return user;
@@ -257,9 +284,9 @@ io.on("connection", (socket) => {
         const room = rooms.get(roomId);
         if (!room) return;
 
-        let updatedUsers = room.users.filter(user => user.id !== socket.id);
+        let updatedUsers = room.users.filter(user => user.username !== socket.data.user.name);
         socket.leave(roomId);
-
+        userRoomIndex.delete(socket.data.user.name);
 
         if (updatedUsers.length === 0) {
             rooms.delete(roomId);
@@ -269,7 +296,7 @@ io.on("connection", (socket) => {
 
         const haveHost = updatedUsers.some(user => user.host);
 
-        if(!haveHost){
+        if (!haveHost) {
             if (updatedUsers[0]) updatedUsers[0].host = true;
         }
 
