@@ -158,14 +158,14 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, InterServerEve
 io.use((socket, next) => {
     const token = socket.handshake.auth.token;
     try {
-        if(!token){
+        if (!token) {
             return next(new Error("Token is missing."));
         }
 
         const JWTsecret = process.env.JWT_SECRET ? process.env.JWT_SECRET : "";
         jwt.verify(token, JWTsecret, (err: VerifyErrors | null, decoded: string | JwtPayload | undefined) => {
             if (err) return next(new Error("Invalid token."));
-            if(decoded && typeof decoded !== "string"){
+            if (decoded && typeof decoded !== "string") {
                 socket.data.user = decoded.data;
             }
             next();
@@ -182,28 +182,28 @@ io.on("connection", (socket) => {
     console.log("established websocket connection:  " + socket.id);
 
     socket.on("create-room", (callback) => {
-        if(socket.rooms.size >= 2) return;
+        if (socket.rooms.size >= 2) return;
         const roomId = genUniqueLobbyCode(rooms);
-        const room:Room = {
+        const room: Room = {
             id: roomId,
-            users: [{id: socket.id, username: socket.data.user.name, host: true, ready: false}],
+            users: [{ id: socket.id, username: socket.data.user.name, host: true, ready: false }],
             maxPlayers: 4,
             status: "in-lobby",
         }
-        
+
         rooms.set(roomId, room);
         socket.join(roomId);
 
-        callback({success: true, room});
+        callback({ success: true, room });
         io.to(roomId).except(socket.id).emit("room-updated", room);
     })
 
     socket.on("join-room", (roomId, callback) => {
         const room = rooms.get(roomId);
-        if(room && !room.users.some(user => user.id === socket.id) && room.users.length < room.maxPlayers){
+        if (room && !room.users.some(user => user.id === socket.id) && room.users.length < room.maxPlayers) {
             const updated: Room = {
                 id: roomId,
-                users: [...room.users.values(), {id: socket.id, username: socket.data.user.name, host: false, ready: false}],
+                users: [...room.users.values(), { id: socket.id, username: socket.data.user.name, host: false, ready: false }],
                 maxPlayers: room.maxPlayers,
                 status: room.status,
             }
@@ -211,11 +211,81 @@ io.on("connection", (socket) => {
             rooms.set(roomId, updated);
             socket.join(roomId);
 
-            callback({success: true, room: updated});
+            callback({ success: true, room: updated });
             socket.to(roomId).emit("room-updated", updated);
-        }else{
-            callback({success: false, message: `Room with room id: ${roomId} is full or does not exist.`})
+        } else {
+            callback({ success: false, message: `Room with room id: ${roomId} is full or does not exist.` })
         }
+    })
+
+    socket.on("start-game", (callback) => {
+        const rs = Array.from(socket.rooms);
+        const roomId = rs.find(id => id !== socket.id);
+
+        if (!roomId) return;
+        const room = rooms.get(roomId)
+        if (!room) return;
+
+        const updatedUsers = room.users.map(user => {
+            if (user.id === socket.id) {
+                return { ...user, ready: !user.ready }
+            }
+            return user;
+        })
+
+        const allReady = updatedUsers.every(user => user.ready);
+
+
+        const updated: Room = {
+            id: roomId,
+            users: updatedUsers,
+            maxPlayers: room.maxPlayers,
+            status: allReady ? "Starting the game" : room.status,
+        }
+
+        rooms.set(roomId, updated);
+
+        callback({ success: true, room: updated });
+        socket.to(roomId).emit("room-updated", updated);
+    });
+
+    socket.on("leave-room", (callback) => {
+        const rs = Array.from(socket.rooms);
+        const roomId = rs.find(id => id !== socket.id);
+
+        if (!roomId) return;
+        const room = rooms.get(roomId);
+        if (!room) return;
+
+        let updatedUsers = room.users.filter(user => user.id !== socket.id);
+        socket.leave(roomId);
+
+
+        if (updatedUsers.length === 0) {
+            rooms.delete(roomId);
+            callback({ success: true });
+            return;
+        }
+
+        const haveHost = updatedUsers.some(user => user.host);
+
+        if(!haveHost){
+            if (updatedUsers[0]) updatedUsers[0].host = true;
+        }
+
+        const allReady = updatedUsers.every(user => user.ready);
+
+        const updated: Room = {
+            id: roomId,
+            users: updatedUsers,
+            maxPlayers: room.maxPlayers,
+            status: allReady ? "Starting the game" : room.status,
+        }
+
+        rooms.set(roomId, updated);
+
+        callback({ success: true });
+        io.to(roomId).emit("room-updated", updated);
     })
 
 })

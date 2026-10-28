@@ -28,19 +28,16 @@ export interface ClientToServerEvents {
         }) => void
     ) => void;
 
-    "set-ready": (
-        ready: boolean,
-        callback: (response: {
-            success: boolean;
-            room?: Room;
-            message?: string;
-        }) => void
-    ) => void;
-
     "start-game": (
         callback: (response: {
             success: boolean;
-            message?: string;
+            room: Room;
+        }) => void
+    ) => void;
+
+    "leave-room": (
+        callback: (response: {
+            success: boolean;
         }) => void
     ) => void;
 }
