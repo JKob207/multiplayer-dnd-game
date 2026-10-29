@@ -1,10 +1,8 @@
-import { useNavigate } from 'react-router-dom';
-import { useState,useEffect } from 'react';
+
+import { useState, useEffect } from 'react';
 import './Lobby.css';
 import { socket } from '../../socket';
 import type { Room } from "../../../../shared/interfaces"
-
-
 type LobbyProps = {
   onLogout: () => void;
 };
@@ -16,28 +14,32 @@ export default function Lobby({ onLogout }: LobbyProps) {
   const [room, setRoom] = useState<Room | undefined>();
   const [isReady, setIsReady] = useState(false);
 
-  const navigate = useNavigate();
-
-  const allPlayersReady =
-    room !== undefined &&
-    room.users.length > 0 &&
-    room.users.every((user) => user.ready);
-
-  const isHost = room?.users.some(
-    (user) => user.id === socket.id && user.host
-  ) ?? false;
 
   useEffect(() => {
-  const handleRoomUpdated = (update: Room) => {
-    setRoom(update);
-  };
+    const updateRoom = (update: Room) => {
+      setRoom(update);
+    };
 
-  socket.on('room-updated', handleRoomUpdated);
+    const restoreRoom = () => {
+      socket.emit('get-room', ({ room: currentRoom, isReady: currentUserReady }) => {
+        setRoom(currentRoom);
+        setIsReady(currentUserReady);
+      });
+    };
 
-  return () => {
-    socket.off('room-updated', handleRoomUpdated);
-  };
-}, []);
+    socket.on('room-updated', updateRoom);
+    socket.on('connect', restoreRoom);
+
+    if (socket.connected) {
+      restoreRoom();
+    }
+
+    return () => {
+      socket.off('room-updated', updateRoom);
+      socket.off('connect', restoreRoom);
+    };
+
+  }, []);
   function handleJoin() {
     if (roomCode.length !== 6) {
       setMessage('Please enter a 6-character room code.');
@@ -45,15 +47,20 @@ export default function Lobby({ onLogout }: LobbyProps) {
     }
 
     socket.emit("join-room", roomCode, res => {
-      if (!res.success) {
-        setMessage('Theres no such room.');
+      if (res.success) {
+        setRoom(res.room);
+        console.log(res.room);
+
         return;
       }
 
-      setRoom(res.room);
-      console.log(res.room);
-      
+      setMessage('Theres no such room.');
     })
+  }
+
+  function onLogoutExtended(){
+    handleLeavingLobby();
+    onLogout();
   }
 
   function handleCreate() {
@@ -64,21 +71,29 @@ export default function Lobby({ onLogout }: LobbyProps) {
   }
 
   function handleReady() {
-  setIsReady((previous) => !previous);
-}
+    if (!room) return;
 
-function handleStartGame() {
-  if (!isHost || !allPlayersReady) return;
-  // setMessage('Starting game — coming soon!');
-  socket.emit('start-game', (response) => {
-  if (response.success) {
-    navigate('/game');
-  } else {
-
+    socket.emit("toggle-ready", res => {
+      if (res.success) {
+        setRoom(res.room);
+        setIsReady((previous) => !previous);
+      }
+    })
   }
-});
-}
-  
+
+
+  function handleLeavingLobby() {
+    socket.emit("leave-room", res => {
+      if (res.success) {
+        setRoom(undefined);
+        setIsReady(false);
+        setShowJoin(false);
+        setMessage('');
+        setRoomCode('');
+      }
+    })
+  }
+
 
   return (
     <section className="lobby">
@@ -145,26 +160,26 @@ function handleStartGame() {
         <div className="room-view">
           <h1>Game Lobby</h1>
 
-          
-        <div className="players-panel">
-          <h2>Players ({room.users.length})</h2>
 
-          <div className="player-list">
-            {room.users.map((user) => (
-              <div className="player-row" key={user.id}>
-                <span>
-                  {user.username}
-                  {' '}
-                  {user.host && ' (Host) '}
-                </span>
+          <div className="players-panel">
+            <h2>Players ({room.users.length})</h2>
 
-                <span className={user.ready ? 'ready-status' : 'not-ready-status'}>
-                  {user.ready ? 'Ready' : 'Not Ready'}
-                </span>
-              </div>
-            ))}
+            <div className="player-list">
+              {room.users.map((user) => (
+                <div className="player-row" key={user.username}>
+                  <span>
+                    {user.username}
+                    {' '}
+                    {user.host && ' (Host) '}
+                  </span>
+
+                  <span className={user.ready ? 'ready-status' : 'not-ready-status'}>
+                    {user.ready ? 'Ready' : 'Not Ready'}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
 
 
           <div className="room-code-panel">
@@ -181,7 +196,7 @@ function handleStartGame() {
               Copy Code
             </button>
           </div>
-          
+
 
           {message && (
             <p className="lobby-message" role="status">
@@ -189,30 +204,14 @@ function handleStartGame() {
             </p>
           )}
 
-            <button
-              type="button"
-              onClick={handleReady}
-              className={isReady ? 'is-ready' : ''}
-            >
-              {isReady ? 'Not Ready' : 'Ready Up'}
-            </button>
+          <button
+            type="button"
+            onClick={handleReady}
+            className={isReady ? 'is-ready' : ''}
+          >
+            {isReady ? 'Not Ready' : 'Ready Up'}
 
-            {isHost && (
-              <button
-                type="button"
-                onClick={handleStartGame}
-                disabled={!allPlayersReady}
-              >
-                Start Game
-              </button>
-            )}
-
-            {!isHost && isReady && (<p className="waiting-message">
-            Waiting for the host to start the game...
-          </p>)}
-          
-
-          
+          </button>
         </div>
       )}
 
@@ -228,9 +227,7 @@ function handleStartGame() {
         <button
           className="leave-lobby-button"
           type="button"
-          onClick={() => {
-            setMessage('Leaving the lobby is not implemented yet.');
-          }}
+          onClick={handleLeavingLobby}
         >
           Leave Lobby
         </button>
@@ -239,9 +236,10 @@ function handleStartGame() {
       <button
         className="logout-button"
         type="button"
-        onClick={onLogout}
+        onClick={onLogoutExtended}
       >
         Log Out
       </button>
     </section>
-  )};
+  )
+};
