@@ -6,6 +6,8 @@ const TILE_SIZE = 32;
 const MAP_WIDTH = 25;
 const MAP_HEIGHT = 18;
 
+
+
 export default class DungeonScene extends Phaser.Scene {
   private other_players!: Phaser.Physics.Arcade.Sprite[];
   private player!: Phaser.Physics.Arcade.Sprite
@@ -17,6 +19,18 @@ export default class DungeonScene extends Phaser.Scene {
     S: Phaser.Input.Keyboard.Key;
     D: Phaser.Input.Keyboard.Key;
   };
+
+  private playerColors = [
+  0xff4d4d, // Red
+  0x4caf50, // Green
+  0x4287f5, // Blue
+  0xffd43b, // Yellow
+  ];
+
+  private playerNames = new Map<
+    Phaser.Physics.Arcade.Sprite,
+    Phaser.GameObjects.Text
+  >();
 
   constructor() {
     super('DungeonScene');
@@ -81,8 +95,27 @@ export default class DungeonScene extends Phaser.Scene {
             'player',
           )
           player.name = user.username;
+          const colorIndex = res.room!.users.indexOf(user) % this.playerColors.length;
+          player.setTint(this.playerColors[colorIndex]);
+
           player.setCollideWorldBounds(true);
           player.setDepth(1);
+          const nickname = this.add.text(
+          player.x,
+          player.y - 24,
+          user.username,
+          {
+            fontSize: '12px',
+            color: '#ffffff',
+            backgroundColor: '#171619',
+            padding: { x: 4, y: 2 },
+          },
+          );
+
+          nickname.setOrigin(0.5, 1);
+          nickname.setDepth(2);
+
+          this.playerNames.set(player, nickname);
 
           this.physics.add.collider(player, walls);
           if (player.name == name) {
@@ -138,6 +171,9 @@ export default class DungeonScene extends Phaser.Scene {
       socket.emit("send-location", this.player.x, this.player.y);
       this.lastEmitTime = currTime;
     }
+    this.playerNames.forEach((label, player) => {
+    label.setPosition(player.x, player.y - 24);
+    });
 
 
     const speed = 160;
