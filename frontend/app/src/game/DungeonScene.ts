@@ -27,11 +27,6 @@ export default class DungeonScene extends Phaser.Scene {
   0xffd43b, // Yellow
   ];
 
-  private playerNames = new Map<
-    Phaser.Physics.Arcade.Sprite,
-    Phaser.GameObjects.Text
-  >();
-
   constructor() {
     super('DungeonScene');
   }
@@ -114,9 +109,7 @@ export default class DungeonScene extends Phaser.Scene {
 
           nickname.setOrigin(0.5, 1);
           nickname.setDepth(2);
-
-          this.playerNames.set(player, nickname);
-
+          player.setData('nickname', nickname);
           this.physics.add.collider(player, walls);
           if (player.name == name) {
             this.player = player;
@@ -171,8 +164,9 @@ export default class DungeonScene extends Phaser.Scene {
       socket.emit("send-location", this.player.x, this.player.y);
       this.lastEmitTime = currTime;
     }
-    this.playerNames.forEach((label, player) => {
-    label.setPosition(player.x, player.y - 24);
+    Array.from([...this.other_players, this.player]).forEach((player: Phaser.Physics.Arcade.Sprite) => {
+      const label = player.getData('nickname');
+      label.setPosition(player.x, player.y - 24);
     });
 
 
