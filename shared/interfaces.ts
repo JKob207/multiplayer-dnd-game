@@ -14,7 +14,18 @@ export interface ClientToServerEvents {
     "get-room": (
         callback: (response: {
             room: Room | undefined;
+        }) => void
+    ) => void;
+
+    "get-isReady": (
+        callback: (response: {
             isReady: boolean;
+        }) => void
+    ) => void;
+
+    "get-name": (
+        callback: (response: {
+            name: string;
         }) => void
     ) => void;
 
@@ -46,8 +57,21 @@ export interface ClientToServerEvents {
             success: boolean;
         }) => void
     ) => void;
+
+    "send-location": (
+        x: number,
+        y: number,
+    ) => void;
 }
 
 export interface ServerToClientEvents {
     "room-updated": (room: Room) => void;
+    "start-game": () => void;
+    "player-pos-update": (
+        name: string,
+        position: {
+            x: number,
+            y: number
+        }
+    ) => void;
 }

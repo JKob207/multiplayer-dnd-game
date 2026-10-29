@@ -203,8 +203,19 @@ io.on("connection", (socket) => {
         const currentRoomId = userRoomIndex.get(socket.data.user.name);
         const currentRoom = rooms.get(currentRoomId || "");
         const currentUser = currentRoom?.users.find(user => user.username === socket.data.user.name);
-        callback({ room: currentRoom, isReady: currentUser?.ready ?? false });
+        callback({ room: currentRoom});
     });
+
+    socket.on("get-isReady", (callback) => {
+        const currentRoomId = userRoomIndex.get(socket.data.user.name);
+        const currentRoom = rooms.get(currentRoomId || "");
+        const currentUser = currentRoom?.users.find(user => user.username === socket.data.user.name);
+        callback({ isReady: currentUser?.ready ?? false });
+    })
+
+    socket.on("get-name", (callback) => {
+        callback({ name:  socket.data.user.name });
+    })
 
     socket.on("create-room", (callback) => {
         if (socket.rooms.size >= 2) return;
@@ -261,7 +272,7 @@ io.on("connection", (socket) => {
         })
 
         const allReady = updatedUsers.every(user => user.ready);
-
+        
 
         const updated: Room = {
             id: roomId,
@@ -274,6 +285,7 @@ io.on("connection", (socket) => {
 
         callback({ success: true, room: updated });
         socket.to(roomId).emit("room-updated", updated);
+        if (allReady) io.to(roomId).emit("start-game");
     });
 
     socket.on("leave-room", (callback) => {
@@ -315,6 +327,13 @@ io.on("connection", (socket) => {
         io.to(roomId).emit("room-updated", updated);
     })
 
+    socket.on("send-location", (x, y) => {
+        const rs = Array.from(socket.rooms);
+        const roomId = rs.find(id => id !== socket.id) as string;
+        const name = socket.data.user.name as string;
+
+        socket.to(roomId).emit("player-pos-update", name, {x, y});
+    })
 })
 
 

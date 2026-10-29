@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import './Lobby.css';
 import { socket } from '../../socket';
 import type { Room } from "../../../../shared/interfaces"
+import { useNavigate } from 'react-router-dom';
 type LobbyProps = {
   onLogout: () => void;
 };
@@ -13,20 +14,28 @@ export default function Lobby({ onLogout }: LobbyProps) {
   const [showJoin, setShowJoin] = useState(false);
   const [room, setRoom] = useState<Room | undefined>();
   const [isReady, setIsReady] = useState(false);
+  const navigate = useNavigate();
 
 
   useEffect(() => {
+    const startGame = () => {
+      navigate('/game');
+    }
+
     const updateRoom = (update: Room) => {
       setRoom(update);
     };
 
     const restoreRoom = () => {
-      socket.emit('get-room', ({ room: currentRoom, isReady: currentUserReady }) => {
-        setRoom(currentRoom);
-        setIsReady(currentUserReady);
+      socket.emit('get-room', ({ room: currRoom}) => {
+        setRoom(currRoom);
+      });
+      socket.emit('get-isReady', ({ isReady: currReady}) => {
+        setIsReady(currReady);
       });
     };
 
+    socket.on('start-game', startGame);
     socket.on('room-updated', updateRoom);
     socket.on('connect', restoreRoom);
 

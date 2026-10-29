@@ -1,12 +1,15 @@
 
 import Phaser from 'phaser';
+import { socket } from '../../socket';
 
 const TILE_SIZE = 32;
 const MAP_WIDTH = 25;
 const MAP_HEIGHT = 18;
 
 export default class DungeonScene extends Phaser.Scene {
-  private player!: Phaser.Physics.Arcade.Sprite;
+  private other_players!: Phaser.Physics.Arcade.Sprite[];
+  private player!: Phaser.Physics.Arcade.Sprite
+  private lastEmitTime = 0;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: {
     W: Phaser.Input.Keyboard.Key;
@@ -64,18 +67,51 @@ export default class DungeonScene extends Phaser.Scene {
         }
       }
     }
+    this.other_players = [];
 
-    // Add a player inside the room.
-    this.player = this.physics.add.sprite(
-      TILE_SIZE * 4,
-      TILE_SIZE * 4,
-      'player'
-    );
 
-    this.player.setCollideWorldBounds(true);
-    this.player.setDepth(1);
+    socket.emit("get-name", (res) => {
+      const name = res.name;
 
-    this.physics.add.collider(this.player, walls);
+      socket.emit("get-room", (res) => {
+        res.room?.users.forEach((user) => {
+          const player = this.physics.add.sprite(
+            TILE_SIZE * 4,
+            TILE_SIZE * 4,
+            'player',
+          )
+          player.name = user.username;
+          player.setCollideWorldBounds(true);
+          player.setDepth(1);
+
+          this.physics.add.collider(player, walls);
+          if (player.name == name) {
+            this.player = player;
+          } else {
+            this.other_players.push(player);
+          }
+        })
+
+      })
+    })
+
+    socket.on('player-pos-update', (username, {x, y}) => {
+      const update = this.other_players.find(player => player.name === username);
+      if(update){
+        update.setX(x);
+        update.setY(y);
+      }
+    })
+    // this.player = this.physics.add.sprite(
+    //   TILE_SIZE * 4,
+    //   TILE_SIZE * 4,
+    //   'player'
+    // );
+
+    // this.player.setCollideWorldBounds(true);
+    // this.player.setDepth(1);
+
+    // this.physics.add.collider(this.player, walls);
 
     // Keyboard controls.
     if (!this.input.keyboard) return;
@@ -96,6 +132,13 @@ export default class DungeonScene extends Phaser.Scene {
 
   update() {
     if (!this.player || !this.cursors || !this.wasd) return;
+    const currTime = this.time.now;
+
+    if(currTime - this.lastEmitTime >= 30){
+      socket.emit("send-location", this.player.x, this.player.y);
+      this.lastEmitTime = currTime;
+    }
+
 
     const speed = 160;
     const body = this.player.body as Phaser.Physics.Arcade.Body;

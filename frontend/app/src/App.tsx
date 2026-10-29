@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react'
-import './App.css'
-import Background from './components/Background.js'
-import Register from './components/Register.js'
-import Login from './components/Login.js'
+import { useEffect, useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import './App.css';
+import Background from './components/Background.js';
+import Register from './components/Register.js';
+import Login from './components/Login.js';
 import Lobby from './components/Lobby';
+import GameCanvas from './components/GameCanvas';
 import { socket } from '../socket';
 
 function App() {
-  useEffect(() => {
+  
+useEffect(() => {
     const token = localStorage.getItem('accessToken');
 
     if(!token){
@@ -21,57 +24,89 @@ function App() {
   }, []);
 
   const [showRegister, setShowRegister] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
-   const [isAuthenticated, setIsAuthenticated] = useState(
+  const [successMessage, setSuccessMessage] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(
     Boolean(localStorage.getItem('accessToken'))
   );
 
   function handleRegistrationSuccess() {
     setShowRegister(false);
-    setSuccessMessage("Registered successfully!");
+    setSuccessMessage('Registered successfully!');
 
     setTimeout(() => {
-      setSuccessMessage("");
+      setSuccessMessage('');
     }, 3000);
   }
-   function handleLogout() {
+
+  function handleLogout() {
     localStorage.removeItem('accessToken');
-    socket.disconnect();
+    socket.close();
     setIsAuthenticated(false);
     setShowRegister(false);
   }
 
   return (
-    <>
-      
+    <BrowserRouter>
       <div className="app">
-      <Background />
+        <Background />
 
         <main className="page-content">
-        {isAuthenticated ? (
-          <Lobby onLogout={handleLogout} />
-        ) : showRegister ? (
-          <Register
-            onSwitch={() => setShowRegister(false)}
-            onSuccess={handleRegistrationSuccess}
-          />
-        ) : (
-          <Login
-            onSwitch={() => setShowRegister(true)}
-            onSuccess={() => setIsAuthenticated(true)}
-          />
-        )}
-      </main>
+          <Routes>
+            <Route
+              path="/"
+              element={
+                isAuthenticated ? (
+                  <Navigate to="/lobby" replace />
+                ) : showRegister ? (
+                  <Register
+                    onSwitch={() => setShowRegister(false)}
+                    onSuccess={handleRegistrationSuccess}
+                  />
+                ) : (
+                  <Login
+                    onSwitch={() => setShowRegister(true)}
+                    onSuccess={() => setIsAuthenticated(true)}
+                  />
+                )
+              }
+            />
 
-  {successMessage && (
-        <div className="success-popup" role="status">
-          {successMessage}
-        </div>
-      )}
-    </div>
-      
-    </>
-  )
+            <Route
+              path="/lobby"
+              element={
+                isAuthenticated ? (
+                  <Lobby onLogout={handleLogout} />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              }
+            />
+
+            <Route
+              path="/game"
+              element={
+                isAuthenticated ? (
+                  <GameCanvas />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              }
+            />
+
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+
+        {successMessage && (
+          <div className="success-popup" role="status">
+            {successMessage}
+          </div>
+        )}
+      </div>
+    </BrowserRouter>
+  );
 }
 
-export default App
+export default App;
+
+
