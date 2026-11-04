@@ -2,6 +2,7 @@
 import { useEffect, useRef } from 'react';
 import Phaser from 'phaser';
 import DungeonScene from '../game/DungeonScene';
+import CombatScene from '../game/CombatScene';
 
 export default function GameCanvas() {
   const gameContainer = useRef<HTMLDivElement>(null);
@@ -22,7 +23,7 @@ export default function GameCanvas() {
           debug: false,
         },
       },
-      scene: [DungeonScene],
+      scene: [DungeonScene,CombatScene],
     });
 
     return () => {

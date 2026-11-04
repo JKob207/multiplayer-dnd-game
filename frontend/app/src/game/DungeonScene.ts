@@ -6,7 +6,14 @@ const TILE_SIZE = 32;
 const MAP_WIDTH = 25;
 const MAP_HEIGHT = 18;
 
-
+export type EnemyData = {
+  name: string;
+  hp: number;
+  maxHp: number;
+  attack: number;
+  defense: number;
+  armor: number;
+};
 
 export default class DungeonScene extends Phaser.Scene {
   private other_players!: Phaser.Physics.Arcade.Sprite[];
@@ -19,6 +26,54 @@ export default class DungeonScene extends Phaser.Scene {
     S: Phaser.Input.Keyboard.Key;
     D: Phaser.Input.Keyboard.Key;
   };
+
+  private zombie!: Phaser.GameObjects.Arc;
+  private zombieDefeated = false;
+  private zombieEncounterStarted = false;
+
+  private zombieData: EnemyData = {
+    name: 'Zombie',
+    hp: 40,
+    maxHp: 40,
+    attack: 6,
+    defense: 2,
+    armor: 0,
+  };
+
+  private createZombie() {
+  // Temporary green zombie placeholder
+  this.zombie = this.add.circle(
+    400, 300, 18, 0x35c759
+  );
+  
+
+  this.physics.add.existing(this.zombie);
+
+  const body = this.zombie.body as Phaser.Physics.Arcade.Body;
+  body.setCircle(18);
+  body.setImmovable(true);
+}
+private setupZombieEncounter() {
+  this.physics.add.overlap(
+    this.player,
+    this.zombie,
+    () => {
+      if (this.zombieEncounterStarted) return;
+
+      this.zombieEncounterStarted = true;
+
+      const body = this.player.body as Phaser.Physics.Arcade.Body;
+      body.setVelocity(0, 0);
+
+      this.scene.launch('CombatScene', {
+        enemy: { ...this.zombieData },
+      });
+
+      this.scene.pause();
+    }
+  );
+}
+
 
   private playerColors = [
   0xff4d4d, // Red
@@ -112,14 +167,20 @@ export default class DungeonScene extends Phaser.Scene {
           player.setData('nickname', nickname);
           this.physics.add.collider(player, walls);
           if (player.name == name) {
-            this.player = player;
-          } else {
-            this.other_players.push(player);
-          }
+          this.player = player;
+
+          this.createZombie();
+          this.setupZombieEncounter();
+        } else {
+          this.other_players.push(player);
+        }
         })
 
       })
     })
+    this.events.once('enemy-defeated', () => {
+    this.zombie.destroy();
+    });
 
     socket.on('player-pos-update', (username, {x, y}) => {
       const update = this.other_players.find(player => player.name === username);
@@ -154,7 +215,33 @@ export default class DungeonScene extends Phaser.Scene {
       backgroundColor: '#171619',
       padding: { x: 8, y: 6 },
     }).setScrollFactor(0).setDepth(2);
+
+    
+    // Developer button to test combat.
+    const devButton = this.add.text(
+      12,
+      48,
+      '[ DEV ] TEST COMBAT',
+      {
+        fontSize: '14px',
+        fontFamily: 'Arial',
+        color: '#ffffff',
+        backgroundColor: '#8b2929',
+        padding: { x: 8, y: 6 },
+      }
+    );
+
+    devButton
+      .setScrollFactor(0)
+      .setDepth(10)
+      .setInteractive({ useHandCursor: true });
+
+    devButton.on('pointerdown', () => {
+      this.scene.pause();
+      this.scene.launch('CombatScene');
+    });
   }
+  
 
   update() {
     if (!this.player || !this.cursors || !this.wasd) return;
@@ -189,4 +276,5 @@ export default class DungeonScene extends Phaser.Scene {
 
     body.velocity.normalize().scale(speed);
   }
+  
 }
