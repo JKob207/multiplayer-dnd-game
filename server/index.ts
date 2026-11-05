@@ -31,6 +31,184 @@ type RoomCombat = {
 
 const combats = new Map<string, RoomCombat>();
 
+type MonsterState = {
+  x: number;
+  y: number;
+  angle: number;
+  mode: "idle" | "chasing" | "engaged";
+  target: string | null;
+  lastUpdate: number;
+};
+
+const monsters = new Map<string, MonsterState>();
+
+const playerPositions = new Map<
+  string,
+  Map<string, { x: number; y: number; }>
+>();
+
+const MONSTER_START_X = 400;
+const MONSTER_START_Y = 300;
+
+const VISION_RANGE = 250;
+const VISION_ANGLE = Math.PI / 3; // 90 degrees
+
+const MONSTER_SPEED = 90;
+const ENGAGE_DISTANCE = 35;
+
+function getAngleDifference(a: number, b: number) {
+  return Math.atan2(Math.sin(a - b), Math.cos(a - b));
+}
+
+function startRoomCombat(roomId: string) {
+  const room = rooms.get(roomId);
+  if (!room || combats.has(roomId)) return;
+
+if (!monsters.has(roomId)) {
+  monsters.set(roomId, {
+    x: MONSTER_START_X,
+    y: MONSTER_START_Y,
+    angle: 0,
+    mode: "idle",
+    target: null,
+    lastUpdate: Date.now(),
+  });
+}
+
+const monster = monsters.get(roomId)!;
+  if (monster.mode === "engaged") return;
+
+  monster.mode = "engaged";
+
+  const state: CombatState = {
+    enemy: {
+      name: "Zombie",
+      hp: 40,
+      maxHp: 40,
+      attack: 6,
+      defense: 2,
+      armor: 0,
+    },
+    players: Object.fromEntries(
+      room.users.map(user => [
+        user.username,
+        { hp: 20, maxHp: 20 },
+      ])
+    ),
+    phase: "player-turn",
+    active: true,
+    round: 1,
+  };
+
+  combats.set(roomId, {
+    state,
+    attacked: new Set(),
+    dodged: new Set(),
+    lastHitAt: new Map(),
+  });
+
+  io.to(roomId).emit("monster-update", monster);
+  io.to(roomId).emit("combat-started", state);
+}
+
+setInterval(() => {
+  for (const [roomId, monster] of monsters) {
+    if (monster.mode === "engaged") continue;
+
+    const room = rooms.get(roomId);
+    const positions = playerPositions.get(roomId);
+
+    if (!room || !positions) continue;
+
+    const now = Date.now();
+    const delta = Math.min(
+      (now - monster.lastUpdate) / 1000,
+      0.1
+    );
+
+    monster.lastUpdate = now;
+
+    // Find the current target.
+    let targetName = monster.target;
+    let targetPosition = targetName
+      ? positions.get(targetName)
+      : undefined;
+
+    // Check whether the current target is still in range.
+    if (targetPosition) {
+      const dx = targetPosition.x - monster.x;
+      const dy = targetPosition.y - monster.y;
+      const distance = Math.hypot(dx, dy);
+
+      if (distance > VISION_RANGE * 1.5) {
+        targetName = null;
+        targetPosition = undefined;
+        monster.target = null;
+        monster.mode = "idle";
+
+        io.to(roomId).emit("monster-lost-target");
+      }
+    }
+
+    // Look for a player if there is no target.
+    if (!targetPosition) {
+      for (const user of room.users) {
+        const position = positions.get(user.username);
+        if (!position) continue;
+
+        const dx = position.x - monster.x;
+        const dy = position.y - monster.y;
+        const distance = Math.hypot(dx, dy);
+
+        if (distance > VISION_RANGE) continue;
+
+        const angleToPlayer = Math.atan2(dy, dx);
+        const angleDifference = Math.abs(
+          getAngleDifference(angleToPlayer, monster.angle)
+        );
+
+        if (angleDifference <= VISION_ANGLE / 2) {
+          targetName = user.username;
+          targetPosition = position;
+          monster.target = targetName;
+          monster.mode = "chasing";
+
+          io.to(roomId).emit(
+            "monster-detected",
+            targetName
+          );
+
+          break;
+        }
+      }
+    }
+
+    // Chase the target.
+    if (targetPosition && targetName) {
+      const dx = targetPosition.x - monster.x;
+      const dy = targetPosition.y - monster.y;
+      const distance = Math.hypot(dx, dy);
+
+      monster.angle = Math.atan2(dy, dx);
+
+      if (distance <= ENGAGE_DISTANCE) {
+        startRoomCombat(roomId);
+        continue;
+      }
+
+      const movement = Math.min(
+        MONSTER_SPEED * delta,
+        distance
+      );
+
+      monster.x += (dx / distance) * movement;
+      monster.y += (dy / distance) * movement;
+    }
+
+    io.to(roomId).emit("monster-update", monster);
+  }
+}, 50);
+
 app.post("/register", async (req, res) => {
     let message = "Something went wrong with the server. We are sorry.";
     try {
@@ -341,40 +519,7 @@ io.on("connection", (socket) => {
   const roomId = userRoomIndex.get(socket.data.user.name);
   if (!roomId) return;
 
-  const room = rooms.get(roomId);
-  if (!room || room.users.length === 0) return;
-
-  // Only the first request starts the encounter.
-  if (combats.has(roomId)) return;
-
-  const state: CombatState = {
-    enemy: {
-      name: "Zombie",
-      hp: 40,
-      maxHp: 40,
-      attack: 6,
-      defense: 2,
-      armor: 0,
-    },
-    players: Object.fromEntries(
-      room.users.map(user => [
-        user.username,
-        { hp: 20, maxHp: 20 },
-      ])
-    ),
-    phase: "player-turn",
-    active: true,
-    round: 1,
-  };
-
-  combats.set(roomId, {
-    state,
-    attacked: new Set(),
-    dodged: new Set(),
-    lastHitAt: new Map(),
-  });
-
-  io.to(roomId).emit("combat-started", state);
+  startRoomCombat(roomId);
 });
 
 socket.on("combat-attack", (result: AttackResult) => {
@@ -506,12 +651,33 @@ socket.on("combat-dodge-finished", () => {
 });
 
     socket.on("send-location", (x, y) => {
-        const rs = Array.from(socket.rooms);
-        const roomId = rs.find(id => id !== socket.id) as string;
-        const name = socket.data.user.name as string;
+  const roomId = userRoomIndex.get(socket.data.user.name);
+  if (!roomId) return;
 
-        socket.to(roomId).emit("player-pos-update", name, {x, y});
-    })
+  const name = socket.data.user.name;
+
+  // Keep your existing player position broadcasting.
+  socket.to(roomId).emit("player-pos-update", name, { x, y });
+
+  // Initialize the monster for this room.
+  if (!monsters.has(roomId)) {
+    monsters.set(roomId, {
+      x: MONSTER_START_X,
+      y: MONSTER_START_Y,
+      angle: 0,
+      mode: "idle",
+      target: null,
+      lastUpdate: Date.now(),
+    });
+  }
+
+  // Save the player's latest position.
+  if (!playerPositions.has(roomId)) {
+    playerPositions.set(roomId, new Map());
+  }
+
+  playerPositions.get(roomId)!.set(name, { x, y });
+});
 })
 
 

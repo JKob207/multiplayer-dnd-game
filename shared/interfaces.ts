@@ -35,6 +35,12 @@ export interface CombatState {
   round: number;
   result?: 'victory' | 'defeat';
 }
+export interface MonsterUpdate {
+  x: number;
+  y: number;
+  angle: number;
+  mode: "idle" | "chasing" | "engaged";
+}
 export interface ClientToServerEvents {
     "get-room": (
         callback: (response: {
@@ -125,4 +131,7 @@ export interface ServerToClientEvents {
     "combat-ended": (
     state: CombatState
     ) => void;
+    "monster-update": (state: MonsterUpdate) => void;
+    "monster-detected": (target: string) => void;
+    "monster-lost-target": () => void;
 }

@@ -29,6 +29,11 @@ export default class DungeonScene extends Phaser.Scene {
   };
 
   private zombie!: Phaser.GameObjects.Arc;
+  private visionCone!: Phaser.GameObjects.Graphics;
+  private zombieTargetX = 400;
+  private zombieTargetY = 300;
+  private zombieAngle = 0;
+  private zombieMode: "idle" | "chasing" | "engaged" = "idle";
   private zombieDefeated = false;
   private zombieEncounterStarted = false;
 
@@ -40,36 +45,50 @@ export default class DungeonScene extends Phaser.Scene {
     defense: 2,
     armor: 0,
   };
+  private drawVisionCone() {
+  if (!this.zombie || !this.visionCone) return;
 
-  private createZombie() {
-  // Temporary green zombie placeholder
+  const range = 250;
+  const halfAngle = Math.PI / 4;
+  const steps = 30;
+
+  this.visionCone.clear();
+  this.visionCone.fillStyle(0xff3333, 0.18);
+
+  this.visionCone.beginPath();
+  this.visionCone.moveTo(this.zombie.x, this.zombie.y);
+
+  for (let i = 0; i <= steps; i++) {
+    const angle =
+      this.zombieAngle - halfAngle +
+      (i / steps) * halfAngle * 2;
+
+    const x = this.zombie.x + Math.cos(angle) * range;
+    const y = this.zombie.y + Math.sin(angle) * range;
+
+    this.visionCone.lineTo(x, y);
+  }
+
+  this.visionCone.closePath();
+  this.visionCone.fillPath();
+}
+
+ private createZombie() {
   this.zombie = this.add.circle(
-    400, 300, 18, 0x35c759
+    400,
+    300,
+    18,
+    0x35c759
   );
+
+  this.zombie.setDepth(3);
+
+  this.visionCone = this.add.graphics();
+  this.visionCone.setDepth(2);
+
+  this.drawVisionCone();
+}
   
-
-  this.physics.add.existing(this.zombie);
-
-  const body = this.zombie.body as Phaser.Physics.Arcade.Body;
-  body.setCircle(18);
-  body.setImmovable(true);
-}
-private setupZombieEncounter() {
-  this.physics.add.overlap(
-    this.player,
-    this.zombie,
-    () => {
-      if (this.zombieEncounterStarted) return;
-
-      this.zombieEncounterStarted = true;
-
-      const body = this.player.body as Phaser.Physics.Arcade.Body;
-      body.setVelocity(0, 0);
-
-      socket.emit("start-combat");
-    }
-  );
-}
 
 
   private playerColors = [
@@ -130,6 +149,14 @@ private setupZombieEncounter() {
     }
 
     socket.off("combat-started");
+    socket.off("monster-update");
+
+    socket.on("monster-update", (state) => {
+      this.zombieTargetX = state.x;
+      this.zombieTargetY = state.y;
+      this.zombieAngle = state.angle;
+      this.zombieMode = state.mode;
+    });
 
     socket.on("combat-started", (state) => {
       if (this.scene.isActive("CombatScene")) return;
@@ -177,7 +204,6 @@ private setupZombieEncounter() {
           this.player = player;
 
           this.createZombie();
-          this.setupZombieEncounter();
         } else {
           this.other_players.push(player);
         }
@@ -187,7 +213,9 @@ private setupZombieEncounter() {
     })
     this.events.once('enemy-defeated', () => {
     this.zombie.destroy();
-    });
+    this.visionCone.destroy();
+    this.zombieDefeated = true;
+});
 
     socket.on('player-pos-update', (username, {x, y}) => {
       const update = this.other_players.find(player => player.name === username);
@@ -251,6 +279,22 @@ private setupZombieEncounter() {
   
 
   update() {
+    if (this.zombie?.active && this.zombieMode !== "engaged") {
+  // Smoothly move toward the server position.
+  this.zombie.x = Phaser.Math.Linear(
+    this.zombie.x,
+    this.zombieTargetX,
+    0.15
+  );
+
+  this.zombie.y = Phaser.Math.Linear(
+    this.zombie.y,
+    this.zombieTargetY,
+    0.15
+  );
+
+  this.drawVisionCone();
+}
     if (!this.player || !this.cursors || !this.wasd) return;
     const currTime = this.time.now;
 
