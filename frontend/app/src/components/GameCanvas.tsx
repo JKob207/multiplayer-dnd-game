@@ -32,10 +32,11 @@ export default function GameCanvas() {
   }, []);
 
   return (
-    <div
+    <div className='game_div'
       ref={gameContainer}
       style={{
         width: '100%',
+        height: '100%',
         display: 'flex',
         justifyContent: 'center',
         overflow: 'hidden',

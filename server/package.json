@@ -1,5 +1,13 @@
 {
+  "name": "server",
+  "version": "1.0.0",
+  "description": "",
   "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "tsx watch index.ts",
+    "start": "tsx index.ts"
+  },
   "dependencies": {
     "bcrypt-ts": "^9.0.2",
     "cors": "^2.8.6",
@@ -18,10 +26,6 @@
     "@types/node": "^26.6.3",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
-  },
-  "scripts": {
-    "dev": "tsx watch index.ts",
-    "start": "tsx index.ts"
   },
   "allowScripts": {
     "sqlite3@6.0.1": true,

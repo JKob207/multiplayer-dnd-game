@@ -49,8 +49,10 @@ useEffect(() => {
     <BrowserRouter>
       <div className="app">
         <Background />
+        
 
         <main className="page-content">
+          
           <Routes>
             <Route
               path="/"
@@ -64,6 +66,7 @@ useEffect(() => {
                   />
                 ) : (
                   <Login
+                  
                     onSwitch={() => setShowRegister(true)}
                     onSuccess={() => setIsAuthenticated(true)}
                   />
@@ -86,7 +89,9 @@ useEffect(() => {
               path="/game"
               element={
                 isAuthenticated ? (
+                  <div className='game_div'>
                   <GameCanvas />
+                  </div>
                 ) : (
                   <Navigate to="/" replace />
                 )

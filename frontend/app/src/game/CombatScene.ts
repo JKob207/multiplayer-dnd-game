@@ -1,5 +1,6 @@
-import type { EnemyData } from './DungeonScene';
+import type { CombatState, AttackResult } from "../../../../shared/interfaces";
 import Phaser from 'phaser';
+import { socket } from "../../socket";
 
 const UI_STYLE = {
   fontFamily: '"Trebuchet MS", sans-serif',
@@ -30,19 +31,6 @@ const UI_STYLE = {
 };
 
 
-
-type AttackResult = 'PERFECT' | 'GOOD' | 'MISS';
-
-function calculateDamage(result: AttackResult): number {
-  switch (result) {
-    case 'PERFECT':
-      return 15;
-    case 'GOOD':
-      return 10;
-    case 'MISS':
-      return 5;
-  }
-}
 
 export default class CombatScene extends Phaser.Scene {
   
@@ -92,25 +80,129 @@ export default class CombatScene extends Phaser.Scene {
   };
 
   private monsterHpText!: Phaser.GameObjects.Text;
-  private enemy!: EnemyData;
+  private enemy!: CombatState["enemy"];
+  private combatState!: CombatState;
+  private username = "";
+  private waitingForPlayers = false;
   private monsterNameText!: Phaser.GameObjects.Text;
+
+  private playerHpText!: Phaser.GameObjects.Text;
+  private playerHp = 20;
+  private readonly playerMaxHp = 20;
+  private readonly hitDamage = 2;
+  private readonly hitImmunityDuration = 500;
+  private lastHitTime = -Infinity;
+
+  private syncCombatState(state: CombatState) {
+  this.combatState = state;
+  this.enemy = state.enemy;
+
+  const myPlayer = state.players[this.username];
+
+  if (myPlayer) {
+    this.playerHp = myPlayer.hp;
+
+    if (this.playerHpText?.active) {
+      this.playerHpText.setText(
+        `HP: ${myPlayer.hp} / ${myPlayer.maxHp}`
+      );
+    }
+  }
+
+  if (this.monsterHpText?.active) {
+    this.monsterHpText.setText(
+      `HP: ${state.enemy.hp} / ${state.enemy.maxHp}`
+    );
+  }
+
+  if (this.monsterNameText?.active) {
+    this.monsterNameText.setText(state.enemy.name);
+  }
+}
+
+private showWaitingForPlayers() {
+  this.children.removeAll(true);
+  this.menuActive = false;
+  this.attackActive = false;
+  this.dodgeActive = false;
+
+  const { width, height } = this.scale;
+
+  this.add.rectangle(
+    0, 0, width, height, 0x000000, 1
+  ).setOrigin(0);
+
+  this.add.text(
+    this.centerX,
+    this.centerY,
+    "Waiting for other players...",
+    {
+      fontSize: "22px",
+      color: "#ffffff",
+      fontFamily: '"Trebuchet MS", sans-serif',
+    }
+  ).setOrigin(0.5);
+
+  this.createStatusPanels();
+  this.syncCombatState(this.combatState);
+}
 
   constructor() {
     super('CombatScene');
   }
 
-  create(data: { enemy: EnemyData }) {
-  this.enemy = data.enemy;
+  create(data: { state: CombatState }) {
+  this.combatState = data.state;
+  this.enemy = data.state.enemy;
 
-  console.log('Received enemy:', this.enemy);
-    const { width, height } = this.scale;
+  socket.emit("get-name", ({ name }) => {
+    this.username = name;
+    this.syncCombatState(this.combatState);
+  });
 
-    this.centerX = width / 2;
-    this.centerY = height / 2;
+  const onCombatUpdated = (state: CombatState) => {
+    this.syncCombatState(state);
+  };
 
-    this.showMenu();
-    
+  const onCombatPhaseChanged = (state: CombatState) => {
+    this.syncCombatState(state);
 
+    if (state.phase === "enemy-turn") {
+      this.waitingForPlayers = false;
+      this.showEnemyTurn();
+    } else if (state.phase === "player-turn") {
+      this.waitingForPlayers = false;
+      this.showMenu();
+    }
+  };
+
+  const onCombatEnded = (state: CombatState) => {
+    this.combatState = state;
+    this.enemy = state.enemy;
+
+    if (state.result === "victory") {
+      this.scene.get("DungeonScene").events.emit("enemy-defeated");
+    }
+
+    this.exitCombat();
+  };
+
+  socket.off("combat-updated");
+  socket.off("combat-phase-changed");
+  socket.off("combat-ended");
+
+  socket.on("combat-updated", onCombatUpdated);
+  socket.on("combat-phase-changed", onCombatPhaseChanged);
+  socket.on("combat-ended", onCombatEnded);
+
+  const { width, height } = this.scale;
+
+  this.centerX = width / 2;
+  this.centerY = height / 2;
+
+  this.showMenu();
+
+  
     if (this.input.keyboard) {
       this.attackKey = this.input.keyboard.addKey(
         Phaser.Input.Keyboard.KeyCodes.SPACE
@@ -132,6 +224,9 @@ export default class CombatScene extends Phaser.Scene {
       this.attackActive = false;
       this.dodgeActive = false;
       this.stopProjectileSpawner();
+      socket.off("combat-updated", onCombatUpdated);
+      socket.off("combat-phase-changed", onCombatPhaseChanged);
+      socket.off("combat-ended", onCombatEnded);
     });
   }
 
@@ -203,16 +298,17 @@ export default class CombatScene extends Phaser.Scene {
     UI_STYLE.normal
   );
 
-    const playerHp = this.add.text(
-    55, 42, 'HP: 20 / 20',
-    UI_STYLE.hp
-  );
+    this.playerHpText = this.add.text(
+  55, 42,
+  `HP: ${this.playerHp} / ${this.playerMaxHp}`,
+  UI_STYLE.hp
+);
 
   playerPanel.add([
     playerBox,
     playerIcon,
     playerName,
-    playerHp
+    this.playerHpText
   ]);
 
   // MONSTER PANEL — RIGHT
@@ -309,7 +405,7 @@ export default class CombatScene extends Phaser.Scene {
     const { width, height } = this.scale;
 
     this.add.rectangle(
-      0, 0, width, height, 0x000000, 0.85
+      0, 0, width, height, 0x000000, 1
     ).setOrigin(0);
 
     this.add.text(this.centerX, 100, choice, {
@@ -344,7 +440,7 @@ export default class CombatScene extends Phaser.Scene {
     const radius = 105;
 
     this.add.rectangle(
-      0, 0, width, height, 0x000000, 0.9
+      0, 0, width, height, 0x000000, 1
     ).setOrigin(0);
 
     this.add.text(cx, 45, 'TIME YOUR ATTACK!', {
@@ -430,14 +526,14 @@ export default class CombatScene extends Phaser.Scene {
     } else {
       result = 'MISS';
     }
-    this.dealDamage(result);
-
-    if (this.enemy.hp <= 0) return;
-
     this.message.setText(result);
 
-    this.time.delayedCall(1500, () => {
-      this.showEnemyTurn();
+    socket.emit("combat-attack", result);
+
+    this.waitingForPlayers = true;
+
+    this.time.delayedCall(1200, () => {
+      this.showWaitingForPlayers();
     });
   }
 
@@ -452,7 +548,7 @@ export default class CombatScene extends Phaser.Scene {
     const { width, height } = this.scale;
 
     this.add.rectangle(
-      0, 0, width, height, 0x000000, 0.9
+      0, 0, width, height, 0x000000, 1
     ).setOrigin(0);
 
     this.add.text(
@@ -486,22 +582,29 @@ export default class CombatScene extends Phaser.Scene {
     });
   }
 
-  private dealDamage(result: AttackResult) {
-  const damage = calculateDamage(result);
+  
 
-  this.enemy.hp = Math.max(0, this.enemy.hp - damage);
+private damagePlayer() {
+  const now = this.time.now;
 
-  this.monsterHpText.setText(
-    `HP: ${this.enemy.hp} / ${this.enemy.maxHp}`
-  );
-
-  console.log(
-    `${result}! ${this.enemy.name} took ${damage} damage.`
-  );
-
-  if (this.enemy.hp <= 0) {
-    this.monsterDefeated();
+  if (now - this.lastHitTime < this.hitImmunityDuration) {
+    return;
   }
+
+  this.lastHitTime = now;
+  this.hasBeenHit = true;
+
+  socket.emit("combat-dodge-hit");
+
+  this.dodgeMessage.setText("You were hit!");
+
+  this.dodgePlayer.setColor("#888888");
+
+  this.time.delayedCall(this.hitImmunityDuration, () => {
+    if (this.dodgeActive && this.dodgePlayer.active) {
+      this.dodgePlayer.setColor("#ff4444");
+    }
+  });
 }
 
   // --------------------------------
@@ -516,6 +619,7 @@ export default class CombatScene extends Phaser.Scene {
 
     this.dodgeTime = 8;
     this.hasBeenHit = false;
+    this.lastHitTime = -Infinity;
 
     this.arenaBounds = {
       left: 70,
@@ -553,7 +657,7 @@ export default class CombatScene extends Phaser.Scene {
       (this.arenaBounds.top + this.arenaBounds.bottom) / 2,
       this.arenaBounds.right - this.arenaBounds.left,
       this.arenaBounds.bottom - this.arenaBounds.top,
-      0x202b40
+      0x000000
     );
 
     const border = this.add.graphics();
@@ -569,7 +673,7 @@ export default class CombatScene extends Phaser.Scene {
     this.dodgePlayer = this.add.text(
       this.centerX,
       this.arenaBounds.bottom - 45,
-      '𔘓',
+      'o',
       {
         fontSize: '32px',
         color: '#ff4444',
@@ -678,14 +782,8 @@ export default class CombatScene extends Phaser.Scene {
         projectile.object.y
       );
 
-      if (distance < 19 && !this.hasBeenHit) {
-        this.hasBeenHit = true;
-
-        this.dodgeMessage.setText(
-          'You were hit!'
-        );
-
-        this.dodgePlayer.setColor('#888888');
+      if (distance < 19) {
+        this.damagePlayer();
       }
 
       // Remove projectiles outside the arena
@@ -721,8 +819,9 @@ export default class CombatScene extends Phaser.Scene {
 
     this.dodgeMessage.setText(result);
 
-    this.time.delayedCall(2000, () => {
-      this.showMenu();
+    this.time.delayedCall(1000, () => {
+      socket.emit("combat-dodge-finished");
+      this.showWaitingForPlayers();
     });
   }
 
@@ -732,22 +831,6 @@ export default class CombatScene extends Phaser.Scene {
       this.projectileEvent = undefined;
     }
   }
-  private monsterDefeated() {
-  // Prevent further attacks
-  this.attackActive = false;
-  this.dodgeActive = false;
-  this.menuActive = false;
-
-  this.stopProjectileSpawner();
-
-  // Clear the current combat UI
-  this.children.removeAll(true);
-  this.scene.get('DungeonScene').events.emit('enemy-defeated');
-
-  this.exitCombat();
-
-  
-}
 
   // --------------------------------
   // EXIT

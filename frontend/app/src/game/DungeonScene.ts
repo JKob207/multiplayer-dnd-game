@@ -66,11 +66,7 @@ private setupZombieEncounter() {
       const body = this.player.body as Phaser.Physics.Arcade.Body;
       body.setVelocity(0, 0);
 
-      this.scene.launch('CombatScene', {
-        enemy: { ...this.zombieData },
-      });
-
-      this.scene.pause();
+      socket.emit("start-combat");
     }
   );
 }
@@ -132,6 +128,16 @@ private setupZombieEncounter() {
         }
       }
     }
+
+    socket.off("combat-started");
+
+    socket.on("combat-started", (state) => {
+      if (this.scene.isActive("CombatScene")) return;
+
+      this.scene.launch("CombatScene", { state });
+      this.scene.pause();
+    });
+    
     this.other_players = [];
 
 

@@ -8,7 +8,7 @@ import jwt, { type JwtPayload, type VerifyErrors } from "jsonwebtoken";
 import { createServer } from "http";
 import { Server, Socket } from "socket.io";
 import type { InterServerEvents, SocketData } from "./interfaces.js";
-import type { ClientToServerEvents, Room, ServerToClientEvents } from "./../shared/interfaces.js"
+import type { ClientToServerEvents, Room, ServerToClientEvents, AttackResult, CombatState} from "./../shared/interfaces.js"
 import cors from "cors";
 import genUniqueLobbyCode from "./functions/genLobbyCode.js";
 
@@ -21,6 +21,15 @@ app.use(cors())
 const httpServer = createServer(app);
 const rooms = new Map<string, Room>();
 const userRoomIndex = new Map<string, string>();
+
+type RoomCombat = {
+  state: CombatState;
+  attacked: Set<string>;
+  dodged: Set<string>;
+  lastHitAt: Map<string, number>;
+};
+
+const combats = new Map<string, RoomCombat>();
 
 app.post("/register", async (req, res) => {
     let message = "Something went wrong with the server. We are sorry.";
@@ -298,6 +307,7 @@ io.on("connection", (socket) => {
 
         let updatedUsers = room.users.filter(user => user.username !== socket.data.user.name);
         socket.leave(roomId);
+        
         userRoomIndex.delete(socket.data.user.name);
 
         if (updatedUsers.length === 0) {
@@ -326,6 +336,174 @@ io.on("connection", (socket) => {
         callback({ success: true });
         io.to(roomId).emit("room-updated", updated);
     })
+
+    socket.on("start-combat", () => {
+  const roomId = userRoomIndex.get(socket.data.user.name);
+  if (!roomId) return;
+
+  const room = rooms.get(roomId);
+  if (!room || room.users.length === 0) return;
+
+  // Only the first request starts the encounter.
+  if (combats.has(roomId)) return;
+
+  const state: CombatState = {
+    enemy: {
+      name: "Zombie",
+      hp: 40,
+      maxHp: 40,
+      attack: 6,
+      defense: 2,
+      armor: 0,
+    },
+    players: Object.fromEntries(
+      room.users.map(user => [
+        user.username,
+        { hp: 20, maxHp: 20 },
+      ])
+    ),
+    phase: "player-turn",
+    active: true,
+    round: 1,
+  };
+
+  combats.set(roomId, {
+    state,
+    attacked: new Set(),
+    dodged: new Set(),
+    lastHitAt: new Map(),
+  });
+
+  io.to(roomId).emit("combat-started", state);
+});
+
+socket.on("combat-attack", (result: AttackResult) => {
+  const roomId = userRoomIndex.get(socket.data.user.name);
+  if (!roomId) return;
+
+  const combat = combats.get(roomId);
+  if (!combat || !combat.state.active) return;
+  if (combat.state.phase !== "player-turn") return;
+
+  const username = socket.data.user.name;
+  const player = combat.state.players[username];
+
+  if (!player || player.hp <= 0) return;
+  if (combat.attacked.has(username)) return;
+
+  // Validate the result before calculating damage.
+  if (!["PERFECT", "GOOD", "MISS"].includes(result)) return;
+
+  const damage =
+    result === "PERFECT" ? 15 :
+    result === "GOOD" ? 10 : 5;
+
+  combat.state.enemy.hp = Math.max(
+    0,
+    combat.state.enemy.hp - damage
+  );
+
+  combat.attacked.add(username);
+
+  // Victory ends the encounter for everyone.
+  if (combat.state.enemy.hp <= 0) {
+    combat.state.phase = "ended";
+    combat.state.active = false;
+    combat.state.result = "victory";
+
+    io.to(roomId).emit("combat-ended", combat.state);
+    combats.delete(roomId);
+    return;
+  }
+
+  const livingPlayers = Object.entries(combat.state.players)
+    .filter(([, player]) => player.hp > 0)
+    .map(([name]) => name);
+
+  const everyoneAttacked = livingPlayers.every(name =>
+    combat.attacked.has(name)
+  );
+
+  if (everyoneAttacked) {
+    combat.state.phase = "enemy-turn";
+    combat.dodged.clear();
+
+    io.to(roomId).emit("combat-phase-changed", combat.state);
+  } else {
+    io.to(roomId).emit("combat-updated", combat.state);
+  }
+});
+
+socket.on("combat-dodge-hit", () => {
+  const roomId = userRoomIndex.get(socket.data.user.name);
+  if (!roomId) return;
+
+  const combat = combats.get(roomId);
+  if (!combat || !combat.state.active) return;
+  if (combat.state.phase !== "enemy-turn") return;
+
+  const username = socket.data.user.name;
+  const player = combat.state.players[username];
+
+  if (!player || player.hp <= 0) return;
+
+  // Enforce hit immunity on the server, not just the client.
+  const now = Date.now();
+  const lastHit = combat.lastHitAt.get(username) ?? 0;
+
+  if (now - lastHit < 500) return;
+
+  combat.lastHitAt.set(username, now);
+  player.hp = Math.max(0, player.hp - 2);
+
+  const livingPlayers = Object.values(combat.state.players)
+    .filter(player => player.hp > 0);
+
+  if (livingPlayers.length === 0) {
+    combat.state.phase = "ended";
+    combat.state.active = false;
+    combat.state.result = "defeat";
+
+    io.to(roomId).emit("combat-ended", combat.state);
+    combats.delete(roomId);
+    return;
+  }
+
+  io.to(roomId).emit("combat-updated", combat.state);
+});
+
+socket.on("combat-dodge-finished", () => {
+  const roomId = userRoomIndex.get(socket.data.user.name);
+  if (!roomId) return;
+
+  const combat = combats.get(roomId);
+  if (!combat || !combat.state.active) return;
+  if (combat.state.phase !== "enemy-turn") return;
+
+  const username = socket.data.user.name;
+  const player = combat.state.players[username];
+
+  if (!player || player.hp <= 0) return;
+
+  combat.dodged.add(username);
+
+  const livingPlayers = Object.entries(combat.state.players)
+    .filter(([, player]) => player.hp > 0)
+    .map(([name]) => name);
+
+  const everyoneFinished = livingPlayers.every(name =>
+    combat.dodged.has(name)
+  );
+
+  if (!everyoneFinished) return;
+
+  combat.state.phase = "player-turn";
+  combat.state.round += 1;
+  combat.attacked.clear();
+  combat.dodged.clear();
+
+  io.to(roomId).emit("combat-phase-changed", combat.state);
+});
 
     socket.on("send-location", (x, y) => {
         const rs = Array.from(socket.rooms);
