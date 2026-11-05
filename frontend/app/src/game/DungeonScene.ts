@@ -19,6 +19,7 @@ export default class DungeonScene extends Phaser.Scene {
   private other_players!: Phaser.Physics.Arcade.Sprite[];
   private player!: Phaser.Physics.Arcade.Sprite
   private lastEmitTime = 0;
+  private lastEmittedPos: { x: number, y: number } | undefined;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: {
     W: Phaser.Input.Keyboard.Key;
@@ -247,9 +248,10 @@ private setupZombieEncounter() {
     if (!this.player || !this.cursors || !this.wasd) return;
     const currTime = this.time.now;
 
-    if(currTime - this.lastEmitTime >= 30){
+    if(currTime - this.lastEmitTime >= 30 && (!this.lastEmittedPos || (this.lastEmittedPos.x !== this.player.x || this.lastEmittedPos.y !== this.player.y))){
       socket.emit("send-location", this.player.x, this.player.y);
       this.lastEmitTime = currTime;
+      this.lastEmittedPos = { x: this.player.x, y: this.player.y };
     }
     Array.from([...this.other_players, this.player]).forEach((player: Phaser.Physics.Arcade.Sprite) => {
       const label = player.getData('nickname');
