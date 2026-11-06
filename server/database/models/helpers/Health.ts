@@ -1,24 +1,12 @@
-
-
-interface Health {
+export class HealthComponent{
     current: number;
     max: number;
     shield: number;
 
-    takeDamage(amount: number): number;
-    regenerate(amount: number): void;
-}
-
-export class HealthComponent implements Health{
-    current: number;
-    max: number;
-    shield: number;
-
-    takeDamage(amount: number): number {
+    takeDamage(amount: number): void {
         amount -= this.shield;
         this.current -= amount;
-        if (this.current < 0) return this.current = 0;
-        return this.current;
+        if (this.current < 0) this.current = 0;
     }
 
     regenerate(amount: number): void {

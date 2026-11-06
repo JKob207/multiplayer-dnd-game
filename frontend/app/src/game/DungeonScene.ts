@@ -6,14 +6,6 @@ const TILE_SIZE = 32;
 const MAP_WIDTH = 25;
 const MAP_HEIGHT = 18;
 
-export type EnemyData = {
-  name: string;
-  hp: number;
-  maxHp: number;
-  attack: number;
-  defense: number;
-  armor: number;
-};
 
 export default class DungeonScene extends Phaser.Scene {
   private other_players!: Phaser.Physics.Arcade.Sprite[];
@@ -34,17 +26,7 @@ export default class DungeonScene extends Phaser.Scene {
   private zombieTargetY = 300;
   private zombieAngle = 0;
   private zombieMode: "idle" | "chasing" | "engaged" = "idle";
-  private zombieDefeated = false;
-  private zombieEncounterStarted = false;
 
-  private zombieData: EnemyData = {
-    name: 'Zombie',
-    hp: 40,
-    maxHp: 40,
-    attack: 6,
-    defense: 2,
-    armor: 0,
-  };
   private drawVisionCone() {
   if (!this.zombie || !this.visionCone) return;
 
@@ -214,7 +196,6 @@ export default class DungeonScene extends Phaser.Scene {
     this.events.once('enemy-defeated', () => {
     this.zombie.destroy();
     this.visionCone.destroy();
-    this.zombieDefeated = true;
 });
 
     socket.on('player-pos-update', (username, {x, y}) => {

@@ -1,39 +1,45 @@
-import { DamageType } from "./DamageTypes.js";
+import { DamageType, type Damage } from "./types.js";
 
-interface Resists {
+
+export class ResistsComponent {
     armor: number;
     magicResist: number;
 
-    toTrueDamage(damageType: DamageType, amount: number, penetrationPercentage: number, penetrationFlat: number): number;
-}
+    toTrueDamage(damage: Damage): number {
+        let result = 0;
+        damage.forEach(i => {
+            
+            let reduction = 0;
+            let penetrationPercentage = 0;
+            let penetrationFlat = 0;
+            if (i.type === DamageType.AbilityPower) {
+                reduction = this.magicResist;
+                penetrationPercentage = i.penetration.percentage;
+                penetrationFlat = i.penetration.flat;
+            }
+            if (i.type === DamageType.AttackDamage) {
+                reduction = this.armor;
+                penetrationPercentage = i.penetration.percentage;
+                penetrationFlat = i.penetration.flat;
+            }
+            
+            reduction -= reduction * penetrationPercentage * 0.01;
+            reduction -= penetrationFlat;
 
-export class ResistsComponent implements Resists{
-    armor: number;
-    magicResist: number;
+            if (reduction >= 0) {
+                reduction = 100 / (100 + reduction);
+            } else {
+                reduction = 2 - (100 / (100 - reduction));
+            }
 
-    toTrueDamage(damageType: DamageType, amount: number, penetrationPercentage: number, penetrationFlat: number): number{
-        let reduction = 0;
-        if(damageType === 0){
-            reduction = this.magicResist;
-        }
-        if(damageType === 1){
-            reduction = this.armor;
-        }
+            const postMitigationDamage = i.amount * reduction;
+            result += postMitigationDamage;
+        })
 
-        reduction -= reduction*penetrationPercentage*0.01;
-        reduction -= penetrationFlat;
-
-        if(reduction >= 0){
-            reduction = 100/(100 + reduction);
-        }else{
-            reduction = 2-(100/(100-reduction));
-        }
-
-        const postMitigationDamage = amount * reduction;
-        return postMitigationDamage;
+        return result;
     }
 
-    constructor(armor: number, magicResist: number){
+    constructor(armor: number, magicResist: number) {
         this.armor = armor;
         this.magicResist = magicResist;
     }

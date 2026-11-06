@@ -9,38 +9,7 @@ export interface Room {
     maxPlayers: number;
     status: string;
 }
-export type AttackResult = 'PERFECT' | 'GOOD' | 'MISS';
 
-export type CombatPhase = 'player-turn' | 'enemy-turn' | 'ended';
-
-export interface CombatEnemy {
-  name: string;
-  hp: number;
-  maxHp: number;
-  attack: number;
-  defense: number;
-  armor: number;
-}
-
-export interface CombatPlayer {
-  hp: number;
-  maxHp: number;
-}
-
-export interface CombatState {
-  enemy: CombatEnemy;
-  players: Record<string, CombatPlayer>;
-  phase: CombatPhase;
-  active: boolean;
-  round: number;
-  result?: 'victory' | 'defeat';
-}
-export interface MonsterUpdate {
-  x: number;
-  y: number;
-  angle: number;
-  mode: "idle" | "chasing" | "engaged";
-}
 export interface ClientToServerEvents {
     "get-room": (
         callback: (response: {
@@ -93,16 +62,6 @@ export interface ClientToServerEvents {
         x: number,
         y: number,
     ) => void;
-
-    "start-combat": () => void;
-
-    "combat-attack": (
-    result: AttackResult
-    ) => void;
-
-    "combat-dodge-hit": () => void;
-
-    "combat-dodge-finished": () => void;
 }
 
 export interface ServerToClientEvents {
@@ -115,23 +74,4 @@ export interface ServerToClientEvents {
             y: number
         }
     ) => void;
-
-    "combat-started": (
-    state: CombatState
-    ) => void;
-
-    "combat-updated": (
-    state: CombatState
-    ) => void;
-
-    "combat-phase-changed": (
-    state: CombatState
-    ) => void;
-
-    "combat-ended": (
-    state: CombatState
-    ) => void;
-    "monster-update": (state: MonsterUpdate) => void;
-    "monster-detected": (target: string) => void;
-    "monster-lost-target": () => void;
 }

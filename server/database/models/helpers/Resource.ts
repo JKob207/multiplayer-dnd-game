@@ -1,21 +1,6 @@
+import type { ResourceType } from "./types.js";
 
-
-
-enum ResourceType {
-    "mana",
-    "energy"
-}
-
-interface Resource {
-    current: number;
-    max: number;
-    type: ResourceType;
-
-    consume(amount: number): boolean;
-    regenerate(amount: number): void;
-}
-
-export class ResourceComponent implements Resource{
+export class ResourceComponent{
     current: number;
     max: number;
     type: ResourceType;
@@ -32,8 +17,8 @@ export class ResourceComponent implements Resource{
         if(this.current > this.max) this.current = this.max;
     }
 
-    constructor(current: number, max: number, type: ResourceType){
-        this.current = current;
+    constructor(max: number, type: ResourceType){
+        this.current = max;
         this.max = max;
         this.type = type;
     }
