@@ -8,6 +8,59 @@ const MAP_HEIGHT = 18;
 
 
 export default class DungeonScene extends Phaser.Scene {
+
+  //preload the new textures
+  preload() {
+  this.load.spritesheet('dungeon-floors', 'tiles/dungeon-floors.png',{
+    frameWidth:16,
+    frameHeight:16
+  });
+
+  this.load.spritesheet('dungeon-walls', 'tiles/dungeon-walls.png',{
+    frameWidth:16,
+    frameHeight:16
+  })
+}
+ private WALL_TILES = {
+      topLeft: 4,
+      topRight: 4,
+      bottomLeft: 5,
+      bottomRight: 5,
+
+      top: 2,
+      bottom: 1,
+      left: 3,
+      right: 3,
+    };
+  private getWallTile(x: number, y: number): number {
+  switch (true) {
+    case x === 0 && y === 0:
+      return this.WALL_TILES.topLeft;
+
+    case x === MAP_WIDTH - 1 && y === 0:
+      return this.WALL_TILES.topRight;
+
+    case x === 0 && y === MAP_HEIGHT - 1:
+      return this.WALL_TILES.bottomLeft;
+
+    case x === MAP_WIDTH - 1 && y === MAP_HEIGHT - 1:
+      return this.WALL_TILES.bottomRight;
+
+    case y === 0:
+      return this.WALL_TILES.top;
+
+    case y === MAP_HEIGHT - 1:
+      return this.WALL_TILES.bottom;
+
+    case x === 0:
+      return this.WALL_TILES.left;
+
+    default:
+      return this.WALL_TILES.right;
+  }
+}
+  
+
   private other_players!: Phaser.Physics.Arcade.Sprite[];
   private player!: Phaser.Physics.Arcade.Sprite
   private lastEmitTime = 0;
@@ -85,12 +138,8 @@ export default class DungeonScene extends Phaser.Scene {
   }
 
   create() {
-    // Create simple placeholder textures.
+    
     const graphics = this.make.graphics({ x: 0, y: 0 });
-
-    graphics.fillStyle(0x38363b);
-    graphics.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
-    graphics.generateTexture('floor', TILE_SIZE, TILE_SIZE);
 
     graphics.clear();
     graphics.fillStyle(0x171619);
@@ -123,9 +172,15 @@ export default class DungeonScene extends Phaser.Scene {
         const py = y * TILE_SIZE + TILE_SIZE / 2;
 
         if (isWall) {
-          walls.create(px, py, 'wall');
-        } else {
-          this.add.image(px, py, 'floor');
+          let tileIndex: number;
+          tileIndex = this.getWallTile(x, y);
+
+          const wall = walls.create(px, py, 'dungeon-walls', tileIndex);
+          wall.setScale(2);
+          wall.refreshBody();
+} else {
+ 
+          this.add.image(px, py, 'dungeon-floors',0).setScale(2);
         }
       }
     }
