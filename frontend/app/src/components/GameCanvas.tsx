@@ -2,7 +2,10 @@
 import { useEffect, useRef } from 'react';
 import Phaser from 'phaser';
 import DungeonScene from '../game/DungeonScene';
-import CombatScene from '../game/CombatScene';
+import CombatMenuScene from '../game/CombatMenuScene';
+import CombatAttackScene from '../game/CombatAttackScene';
+import CombatDefenseScene from '../game/CombatDefenseScene';
+import { socket } from '../../socket';
 
 export default function GameCanvas() {
   const gameContainer = useRef<HTMLDivElement>(null);
@@ -23,12 +26,16 @@ export default function GameCanvas() {
           debug: false,
         },
       },
-      scene: [DungeonScene,CombatScene],
+      scene: [DungeonScene, CombatMenuScene, CombatAttackScene, CombatDefenseScene],
     });
+
+    //socket.on("")
 
     return () => {
       game.destroy(true);
     };
+    
+
   }, []);
 
   return (
