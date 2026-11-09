@@ -331,12 +331,13 @@ export default class DungeonScene extends Phaser.Scene {
           nickname.setDepth(player.name === name ? 11 : 2);
           player.setData('nickname', nickname);
           this.physics.add.collider(player, walls);
-          
+
           //make local player always on top
           if (player.name === name) {
             this.player = player;
             this.player.setDepth(10);
             this.createZombie();
+            this.cameras.main.startFollow(this.player, true, 0.2, 0.2);
           } else {
             player.setDepth(1);
             this.other_players.push(player);

@@ -12,8 +12,12 @@ export default function GameCanvas() {
 
     const game = new Phaser.Game({
       type: Phaser.AUTO,
-      width: 800,
-      height: 576,
+      width:  window.innerWidth,
+      height: window.innerHeight,
+      scale: {
+        mode: Phaser.Scale.RESIZE,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+      },
       parent: gameContainer.current,
       backgroundColor: '#0c0c0e',
       pixelArt: true,
