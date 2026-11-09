@@ -9,24 +9,37 @@ const MAP_HEIGHT = 18;
 
 export default class DungeonScene extends Phaser.Scene {
 
-  //preload the new textures
+  //preload the new textures and animations
   preload() {
+
+  //preload floor textures
   this.load.spritesheet('dungeon-floors', 'tiles/dungeon-floors.png',{
     frameWidth:16,
     frameHeight:16
   });
 
+  //preload wall textures
   this.load.spritesheet('dungeon-walls', 'tiles/dungeon-walls.png',{
     frameWidth:16,
     frameHeight:16
-  })
-
+  });
+  
+  //preload player walking animations
   this.load.spritesheet('player-walk', 'sprites/player/walk.png', {
   frameWidth: 64,
   frameHeight: 64
-});
+  });
+
+  //preload player idle animations
+  this.load.spritesheet('player-idle', 'sprites/player/idle.png', {
+  frameWidth: 64,
+  frameHeight: 64
+  });
+
 }
- private WALL_TILES = {
+
+  //map out indexes to different wall tiles
+  private WALL_TILES = {
       topLeft: 4,
       topRight: 4,
       bottomLeft: 5,
@@ -37,6 +50,8 @@ export default class DungeonScene extends Phaser.Scene {
       left: 3,
       right: 3,
     };
+
+  //helper function to distinguish wall tiles, will need tweaking for new room system
   private getWallTile(x: number, y: number): number {
   switch (true) {
     case x === 0 && y === 0:
@@ -67,8 +82,13 @@ export default class DungeonScene extends Phaser.Scene {
   
 
   private other_players!: Phaser.Physics.Arcade.Sprite[];
+
   private remotePositions = new Map<string, { x: number; y: number }>();
+  private remoteLastMoved = new Map<string, number>();
+  private remoteFacingDirection = new Map <string,string>();
   private player!: Phaser.Physics.Arcade.Sprite
+  //lasst faced, direction (for idle animation side detection)
+  private facingDirection: 'up' | 'down' | 'left' | 'right' = 'down';
   private lastEmitTime = 0;
   private lastEmittedPos: { x: number, y: number } | undefined;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -136,6 +156,7 @@ export default class DungeonScene extends Phaser.Scene {
 
   create() {
     //define the frames of animations
+    //player walking
     this.anims.create({
     key: 'walk-up',
     frames: this.anims.generateFrameNumbers('player-walk', {
@@ -145,7 +166,7 @@ export default class DungeonScene extends Phaser.Scene {
     frameRate: 16,
     repeat: -1,
   });
-  this.anims.create({
+    this.anims.create({
     key: 'walk-left',
     frames: this.anims.generateFrameNumbers('player-walk', {
       start: 13,
@@ -154,7 +175,7 @@ export default class DungeonScene extends Phaser.Scene {
     frameRate: 16,
     repeat: -1,
   });
-  this.anims.create({
+    this.anims.create({
     key: 'walk-down',
     frames: this.anims.generateFrameNumbers('player-walk', {
       start: 26,
@@ -163,13 +184,51 @@ export default class DungeonScene extends Phaser.Scene {
     frameRate: 16,
     repeat: -1,
   });
-  this.anims.create({
+    this.anims.create({
     key: 'walk-right',
     frames: this.anims.generateFrameNumbers('player-walk', {
       start: 39,
       end: 47,
     }),
     frameRate: 16,
+    repeat: -1,
+  });
+
+    //player idle
+    this.anims.create({
+    key: 'idle-up',
+    frames: this.anims.generateFrameNumbers('player-idle', {
+      start: 0,
+      end: 1,
+    }),
+    frameRate: 2,
+    repeat: -1,
+  });
+  this.anims.create({
+    key: 'idle-left',
+    frames: this.anims.generateFrameNumbers('player-idle', {
+      start: 13,
+      end: 14,
+    }),
+    frameRate: 2,
+    repeat: -1,
+  });
+  this.anims.create({
+    key: 'idle-down',
+    frames: this.anims.generateFrameNumbers('player-idle', {
+      start: 26,
+      end: 27,
+    }),
+    frameRate: 2,
+    repeat: -1,
+  });
+  this.anims.create({
+    key: 'idle-right',
+    frames: this.anims.generateFrameNumbers('player-idle', {
+      start: 39,
+      end: 40,
+    }),
+    frameRate: 2,
     repeat: -1,
   });
 
@@ -253,6 +312,7 @@ export default class DungeonScene extends Phaser.Scene {
           player.name = user.username;
 
           player.setCollideWorldBounds(true);
+          if(player.name == name)
           player.setDepth(1);
           const nickname = this.add.text(
           player.x,
@@ -267,16 +327,20 @@ export default class DungeonScene extends Phaser.Scene {
           );
 
           nickname.setOrigin(0.5, 1);
-          nickname.setDepth(2);
+          //make local player nick always on top
+          nickname.setDepth(player.name === name ? 11 : 2);
           player.setData('nickname', nickname);
           this.physics.add.collider(player, walls);
-          if (player.name == name) {
-          this.player = player;
-
-          this.createZombie();
-        } else {
-          this.other_players.push(player);
-        }
+          
+          //make local player always on top
+          if (player.name === name) {
+            this.player = player;
+            this.player.setDepth(10);
+            this.createZombie();
+          } else {
+            player.setDepth(1);
+            this.other_players.push(player);
+          }
         })
 
       })
@@ -290,6 +354,8 @@ export default class DungeonScene extends Phaser.Scene {
       const update = this.other_players.find(player => player.name === username);
       //check if player exists
       if(!update) return;
+      //set time last moved to enable detecting if player is idle
+      this.remoteLastMoved.set(username, this.time.now);
 
       //get previous position
       const previous = this.remotePositions.get(username);
@@ -300,8 +366,18 @@ export default class DungeonScene extends Phaser.Scene {
 
         //set animations based on calculated deltas
         if (Math.abs(dx) > Math.abs(dy)) {
+          if(dx > 0){
+            this.remoteFacingDirection.set(username,"right");
+          }else{
+            this.remoteFacingDirection.set(username,"left");
+          }
           update.anims.play(dx > 0 ? 'walk-right' : 'walk-left', true);
         } else if (Math.abs(dy) > 0) {
+          if(dy > 0){
+            this.remoteFacingDirection.set(username,"down");
+          }else{
+            this.remoteFacingDirection.set(username,"up");
+          }
           update.anims.play(dy > 0 ? 'walk-down' : 'walk-up', true);
         }
       }
@@ -405,14 +481,18 @@ export default class DungeonScene extends Phaser.Scene {
 
     if (this.cursors.left.isDown || this.wasd.A.isDown) {
       body.setVelocityX(-speed);
+      this.facingDirection = "left";
     } else if (this.cursors.right.isDown || this.wasd.D.isDown) {
       body.setVelocityX(speed);
+      this.facingDirection = "right";
     }
 
     if (this.cursors.up.isDown || this.wasd.W.isDown) {
       body.setVelocityY(-speed);
+      this.facingDirection = "up";
     } else if (this.cursors.down.isDown || this.wasd.S.isDown) {
       body.setVelocityY(speed);
+      this.facingDirection = "down";
     }
 
     body.velocity.normalize().scale(speed);
@@ -426,8 +506,19 @@ export default class DungeonScene extends Phaser.Scene {
   } else if (body.velocity.y > 0) {
     this.player.anims.play('walk-down', true);
   } else {
-    this.player.anims.stop();
+    //else player is idle, so play idle based on last facing
+    this.player.anims.play(`idle-${this.facingDirection}`, true);
   }
+  //check if other players are idle, then play animation
+    for (const player of this.other_players) {
+      const lastMoved = this.remoteLastMoved.get(player.name);
+
+      if (lastMoved === undefined) continue;
+
+      if (this.time.now - lastMoved > 150) {
+        player.anims.play(`idle-${this.remoteFacingDirection.get(player.name)}`, true);
+      }
+    }
   }
 
   
