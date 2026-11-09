@@ -20,6 +20,11 @@ export default class DungeonScene extends Phaser.Scene {
     frameWidth:16,
     frameHeight:16
   })
+
+  this.load.spritesheet('player-walk', 'sprites/player/walk.png', {
+  frameWidth: 64,
+  frameHeight: 64
+});
 }
  private WALL_TILES = {
       topLeft: 4,
@@ -62,6 +67,7 @@ export default class DungeonScene extends Phaser.Scene {
   
 
   private other_players!: Phaser.Physics.Arcade.Sprite[];
+  private remotePositions = new Map<string, { x: number; y: number }>();
   private player!: Phaser.Physics.Arcade.Sprite
   private lastEmitTime = 0;
   private lastEmittedPos: { x: number, y: number } | undefined;
@@ -123,21 +129,50 @@ export default class DungeonScene extends Phaser.Scene {
 
   this.drawVisionCone();
 }
-  
-
-
-  private playerColors = [
-  0xff4d4d, // Red
-  0x4caf50, // Green
-  0x4287f5, // Blue
-  0xffd43b, // Yellow
-  ];
 
   constructor() {
     super('DungeonScene');
   }
 
   create() {
+    //define the frames of animations
+    this.anims.create({
+    key: 'walk-up',
+    frames: this.anims.generateFrameNumbers('player-walk', {
+      start: 0,
+      end: 8,
+    }),
+    frameRate: 16,
+    repeat: -1,
+  });
+  this.anims.create({
+    key: 'walk-left',
+    frames: this.anims.generateFrameNumbers('player-walk', {
+      start: 13,
+      end: 21,
+    }),
+    frameRate: 16,
+    repeat: -1,
+  });
+  this.anims.create({
+    key: 'walk-down',
+    frames: this.anims.generateFrameNumbers('player-walk', {
+      start: 26,
+      end: 34,
+    }),
+    frameRate: 16,
+    repeat: -1,
+  });
+  this.anims.create({
+    key: 'walk-right',
+    frames: this.anims.generateFrameNumbers('player-walk', {
+      start: 39,
+      end: 47,
+    }),
+    frameRate: 16,
+    repeat: -1,
+  });
+
     
     const graphics = this.make.graphics({ x: 0, y: 0 });
 
@@ -216,8 +251,6 @@ export default class DungeonScene extends Phaser.Scene {
             'player',
           )
           player.name = user.username;
-          const colorIndex = res.room!.users.indexOf(user) % this.playerColors.length;
-          player.setTint(this.playerColors[colorIndex]);
 
           player.setCollideWorldBounds(true);
           player.setDepth(1);
@@ -255,10 +288,30 @@ export default class DungeonScene extends Phaser.Scene {
 
     socket.on('player-pos-update', (username, {x, y}) => {
       const update = this.other_players.find(player => player.name === username);
-      if(update){
-        update.setX(x);
-        update.setY(y);
+      //check if player exists
+      if(!update) return;
+
+      //get previous position
+      const previous = this.remotePositions.get(username);
+      if (previous) {
+        //calculate delta of positions
+        const dx = x - previous.x;
+        const dy = y - previous.y;
+
+        //set animations based on calculated deltas
+        if (Math.abs(dx) > Math.abs(dy)) {
+          update.anims.play(dx > 0 ? 'walk-right' : 'walk-left', true);
+        } else if (Math.abs(dy) > 0) {
+          update.anims.play(dy > 0 ? 'walk-down' : 'walk-up', true);
+        }
       }
+      //update previous position
+      this.remotePositions.set(username, { x, y });
+
+      //update player position
+      update.setX(x);
+      update.setY(y);
+      
     })
     // this.player = this.physics.add.sprite(
     //   TILE_SIZE * 4,
@@ -363,6 +416,20 @@ export default class DungeonScene extends Phaser.Scene {
     }
 
     body.velocity.normalize().scale(speed);
+    // console.log(body.velocity)
+    if (body.velocity.x < 0) {
+    this.player.anims.play('walk-left', true);
+  } else if (body.velocity.x > 0) {
+    this.player.anims.play('walk-right', true);
+  } else if (body.velocity.y < 0) {
+    this.player.anims.play('walk-up', true);
+  } else if (body.velocity.y > 0) {
+    this.player.anims.play('walk-down', true);
+  } else {
+    this.player.anims.stop();
   }
+  }
+
+  
   
 }
