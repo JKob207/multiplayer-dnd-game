@@ -1,6 +1,8 @@
 
 import Phaser from 'phaser';
 import { socket } from '../../socket';
+import Zombie from '../monsters/Zombie';
+import { spawnMonster } from '../monsters/SpawnMonster';
 
 const TILE_SIZE = 32;
 const MAP_WIDTH = 25;
@@ -35,6 +37,12 @@ export default class DungeonScene extends Phaser.Scene {
   frameWidth: 64,
   frameHeight: 64
   });
+
+  //preload zombie idle animation
+  this.load.spritesheet('zombie-idle', 'sprites/zombie/idle.png',{
+    frameWidth: 64,
+    frameHeight: 64
+  })
 
 }
 
@@ -87,6 +95,7 @@ export default class DungeonScene extends Phaser.Scene {
   private remoteLastMoved = new Map<string, number>();
   private remoteFacingDirection = new Map <string,string>();
   private player!: Phaser.Physics.Arcade.Sprite
+
   //lasst faced, direction (for idle animation side detection)
   private facingDirection: 'up' | 'down' | 'left' | 'right' = 'down';
   private lastEmitTime = 0;
@@ -98,57 +107,7 @@ export default class DungeonScene extends Phaser.Scene {
     S: Phaser.Input.Keyboard.Key;
     D: Phaser.Input.Keyboard.Key;
   };
-
-  private zombie!: Phaser.GameObjects.Arc;
-  private visionCone!: Phaser.GameObjects.Graphics;
-  private zombieTargetX = 400;
-  private zombieTargetY = 300;
-  private zombieAngle = 0;
-  private zombieMode: "idle" | "chasing" | "engaged" = "idle";
-
-  private drawVisionCone() {
-  if (!this.zombie || !this.visionCone) return;
-
-  const range = 250;
-  const halfAngle = Math.PI / 4;
-  const steps = 30;
-
-  this.visionCone.clear();
-  this.visionCone.fillStyle(0xff3333, 0.18);
-
-  this.visionCone.beginPath();
-  this.visionCone.moveTo(this.zombie.x, this.zombie.y);
-
-  for (let i = 0; i <= steps; i++) {
-    const angle =
-      this.zombieAngle - halfAngle +
-      (i / steps) * halfAngle * 2;
-
-    const x = this.zombie.x + Math.cos(angle) * range;
-    const y = this.zombie.y + Math.sin(angle) * range;
-
-    this.visionCone.lineTo(x, y);
-  }
-
-  this.visionCone.closePath();
-  this.visionCone.fillPath();
-}
-
- private createZombie() {
-  this.zombie = this.add.circle(
-    400,
-    300,
-    18,
-    0x35c759
-  );
-
-  this.zombie.setDepth(3);
-
-  this.visionCone = this.add.graphics();
-  this.visionCone.setDepth(2);
-
-  this.drawVisionCone();
-}
+  private zombie!: Zombie;
 
   constructor() {
     super('DungeonScene');
@@ -193,7 +152,6 @@ export default class DungeonScene extends Phaser.Scene {
     frameRate: 16,
     repeat: -1,
   });
-
     //player idle
     this.anims.create({
     key: 'idle-up',
@@ -204,7 +162,7 @@ export default class DungeonScene extends Phaser.Scene {
     frameRate: 2,
     repeat: -1,
   });
-  this.anims.create({
+    this.anims.create({
     key: 'idle-left',
     frames: this.anims.generateFrameNumbers('player-idle', {
       start: 13,
@@ -213,7 +171,7 @@ export default class DungeonScene extends Phaser.Scene {
     frameRate: 2,
     repeat: -1,
   });
-  this.anims.create({
+    this.anims.create({
     key: 'idle-down',
     frames: this.anims.generateFrameNumbers('player-idle', {
       start: 26,
@@ -222,9 +180,46 @@ export default class DungeonScene extends Phaser.Scene {
     frameRate: 2,
     repeat: -1,
   });
-  this.anims.create({
+    this.anims.create({
     key: 'idle-right',
     frames: this.anims.generateFrameNumbers('player-idle', {
+      start: 39,
+      end: 40,
+    }),
+    frameRate: 2,
+    repeat: -1,
+  });
+    //zombie idle
+    this.anims.create({
+    key: 'zombie-idle-up',
+    frames: this.anims.generateFrameNumbers('zombie-idle', {
+      start: 0,
+      end: 1,
+    }),
+    frameRate: 2,
+    repeat: -1,
+  });
+    this.anims.create({
+    key: 'zombie-idle-left',
+    frames: this.anims.generateFrameNumbers('zombie-idle', {
+      start: 13,
+      end: 14,
+    }),
+    frameRate: 2,
+    repeat: -1,
+  });
+    this.anims.create({
+    key: 'zombie-idle-down',
+    frames: this.anims.generateFrameNumbers('zombie-idle', {
+      start: 26,
+      end: 27,
+    }),
+    frameRate: 2,
+    repeat: -1,
+  });
+    this.anims.create({
+    key: 'zombie-idle-right',
+    frames: this.anims.generateFrameNumbers('zombie-idle', {
       start: 39,
       end: 40,
     }),
@@ -283,11 +278,8 @@ export default class DungeonScene extends Phaser.Scene {
     socket.off("monster-update");
 
     socket.on("monster-update", (state) => {
-      this.zombieTargetX = state.x;
-      this.zombieTargetY = state.y;
-      this.zombieAngle = state.angle;
-      this.zombieMode = state.mode;
-    });
+      this.zombie?.setServerState(state);
+  });
 
     socket.on("combat-started", (state) => {
       if (this.scene.isActive("CombatScene")) return;
@@ -336,8 +328,8 @@ export default class DungeonScene extends Phaser.Scene {
           if (player.name === name) {
             this.player = player;
             this.player.setDepth(10);
-            this.createZombie();
-            this.cameras.main.startFollow(this.player, true, 0.2, 0.2);
+            this.zombie = spawnMonster(this,Zombie,300,300);
+            this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
           } else {
             player.setDepth(1);
             this.other_players.push(player);
@@ -346,9 +338,10 @@ export default class DungeonScene extends Phaser.Scene {
 
       })
     })
+
     this.events.once('enemy-defeated', () => {
-    this.zombie.destroy();
-    this.visionCone.destroy();
+    this.zombie?.destroy();
+
 });
 
     socket.on('player-pos-update', (username, {x, y}) => {
@@ -445,22 +438,8 @@ export default class DungeonScene extends Phaser.Scene {
   
 
   update() {
-    if (this.zombie?.active && this.zombieMode !== "engaged") {
-  // Smoothly move toward the server position.
-  this.zombie.x = Phaser.Math.Linear(
-    this.zombie.x,
-    this.zombieTargetX,
-    0.15
-  );
+    this.zombie?.update();
 
-  this.zombie.y = Phaser.Math.Linear(
-    this.zombie.y,
-    this.zombieTargetY,
-    0.15
-  );
-
-  this.drawVisionCone();
-}
     if (!this.player || !this.cursors || !this.wasd) return;
     const currTime = this.time.now;
 
