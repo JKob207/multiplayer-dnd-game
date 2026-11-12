@@ -12,6 +12,7 @@ import type { ClientToServerEvents, Room, ServerToClientEvents } from "./../shar
 import cors from "cors";
 import genUniqueLobbyCode from "./functions/genLobbyCode.js";
 import { generateDungeon, printDungeon } from "./functions/MapGenerator.js";
+import type { GeneratedDungeon } from "./functions/MapGenerator.js";
 //import combat states
 import type { CombatState, AttackResult, MonsterState } from "../shared/interfaces.js";
 import { monsterDefinitions } from "./monsters/definitions.js";
@@ -46,16 +47,9 @@ const dodgeHit = new Map<string, Set<string>>();
 // Prevents an enemy turn from getting stuck forever.
 const dodgeTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-const dungeon = generateDungeon({
-    width: 100,
-    height: 100,
-    floor: 1,
-    seed: 123456,
-    extraConnectionChance: 0.35,
-    placementAttempts: 200
-});
 
-printDungeon(dungeon);
+const roomDungeonSeeds = new Map<string, number>();
+
 
 app.post("/register", async (req, res) => {
     let message = "Something went wrong with the server. We are sorry.";
@@ -263,6 +257,11 @@ io.on("connection", (socket) => {
         }
 
         rooms.set(roomId, room);
+
+        const seed = Math.floor(Math.random() * 2147483647);
+
+        roomDungeonSeeds.set(roomId, seed);
+
         const monsters = new Map<string, MonsterState>();
 
         monsters.set("zombie_01", {
@@ -352,6 +351,7 @@ io.on("connection", (socket) => {
 
         if (updatedUsers.length === 0) {
             rooms.delete(roomId);
+            roomDungeonSeeds.delete(roomId);
             callback({ success: true });
             return;
         }
@@ -413,6 +413,28 @@ io.on("connection", (socket) => {
             break;
         }
     }
+    
+});
+socket.on("get-dungeon-seed", (callback) => {
+    console.log("SERVER: get-dungeon-seed received");
+
+    const username = socket.data.user.name;
+    const roomId = userRoomIndex.get(username);
+
+    console.log("SERVER: username:", username);
+    console.log("SERVER: roomId:", roomId);
+    // console.log("SERVER: seed:", roomDungeonSeeds.get(roomId));
+
+    if (!roomId) {
+        callback({ seed: undefined });
+        return;
+    }
+
+    callback({
+        seed: roomDungeonSeeds.get(roomId)
+    });
+
+    console.log("SERVER: callback sent");
 });
 
     //COMBAT HANDLERS

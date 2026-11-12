@@ -3,6 +3,9 @@ import Phaser from 'phaser';
 import { socket } from '../../socket';
 import Zombie from '../monsters/Zombie';
 import { spawnMonster } from '../monsters/SpawnMonster';
+import DungeonRenderer from "./DungeonRenderer";
+import { generateDungeon } from "../../../../server/functions/MapGenerator";
+import type { GeneratedDungeon } from '../../../../server/functions/MapGenerator';
 
 const TILE_SIZE = 32;
 const MAP_WIDTH = 25;
@@ -88,6 +91,8 @@ export default class DungeonScene extends Phaser.Scene {
   }
 }
   
+  private dungeonRenderer!: DungeonRenderer;
+  private generatedDungeon!: GeneratedDungeon;
 
   private other_players!: Phaser.Physics.Arcade.Sprite[];
 
@@ -114,7 +119,42 @@ export default class DungeonScene extends Phaser.Scene {
   }
 
   create() {
-    //define the frames of animations
+
+    console.log("1. DungeonScene create started");
+
+    this.dungeonRenderer = new DungeonRenderer(this, 32);
+
+    console.log("2. Requesting dungeon seed");
+
+    socket.emit("get-dungeon-seed", (response) => {
+        console.log("3. Seed callback received:", response);
+
+        const { seed } = response;
+
+        if (seed === undefined) {
+            console.error("4. Server did not return a seed");
+            return;
+        }
+
+        console.log("5. Starting dungeon generation");
+
+        const dungeon = generateDungeon({
+            width: 100,
+            height: 100,
+            floor: 1,
+            seed,
+            extraConnectionChance: 0.35,
+            placementAttempts: 200
+        });
+
+        console.log("6. Dungeon generated:", dungeon);
+
+        this.dungeonRenderer.render(dungeon);
+
+        console.log("7. Dungeon rendered");
+    });
+
+        //define the frames of animations
     //player walking
     this.anims.create({
     key: 'walk-up',
@@ -249,30 +289,30 @@ export default class DungeonScene extends Phaser.Scene {
     // Draw the dungeon floor and walls.
     const walls = this.physics.add.staticGroup();
 
-    for (let y = 0; y < MAP_HEIGHT; y++) {
-      for (let x = 0; x < MAP_WIDTH; x++) {
-        const isWall =
-          x === 0 ||
-          y === 0 ||
-          x === MAP_WIDTH - 1 ||
-          y === MAP_HEIGHT - 1;
+//     for (let y = 0; y < MAP_HEIGHT; y++) {
+//       for (let x = 0; x < MAP_WIDTH; x++) {
+//         const isWall =
+//           x === 0 ||
+//           y === 0 ||
+//           x === MAP_WIDTH - 1 ||
+//           y === MAP_HEIGHT - 1;
 
-        const px = x * TILE_SIZE + TILE_SIZE / 2;
-        const py = y * TILE_SIZE + TILE_SIZE / 2;
+//         const px = x * TILE_SIZE + TILE_SIZE / 2;
+//         const py = y * TILE_SIZE + TILE_SIZE / 2;
 
-        if (isWall) {
-          let tileIndex: number;
-          tileIndex = this.getWallTile(x, y);
+//         if (isWall) {
+//           let tileIndex: number;
+//           tileIndex = this.getWallTile(x, y);
 
-          const wall = walls.create(px, py, 'dungeon-walls', tileIndex);
-          wall.setScale(2);
-          wall.refreshBody();
-} else {
+//           const wall = walls.create(px, py, 'dungeon-walls', tileIndex);
+//           wall.setScale(2);
+//           wall.refreshBody();
+// } else {
  
-          this.add.image(px, py, 'dungeon-floors',0).setScale(2);
-        }
-      }
-    }
+//           this.add.image(px, py, 'dungeon-floors',0).setScale(2);
+//         }
+//       }
+//     }
 
     socket.off("combat-started");
     socket.off("monster-update");

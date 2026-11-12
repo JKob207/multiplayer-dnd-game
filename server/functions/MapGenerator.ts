@@ -78,7 +78,7 @@ type Point = {
     y: number;
 };
 
-interface DungeonGeneratorOptions {
+export interface DungeonGeneratorOptions {
     width: number;
     height: number;
     floor?: number;
