@@ -24,7 +24,7 @@ export default function GameCanvas() {
       physics: {
         default: 'arcade',
         arcade: {
-          debug: false,
+          debug: true,
         },
       },
       scene: [DungeonScene,CombatScene],

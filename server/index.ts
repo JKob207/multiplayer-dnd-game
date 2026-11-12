@@ -229,11 +229,19 @@ io.on("connection", (socket) => {
     }
 
     socket.on("get-room", (callback) => {
-        const currentRoomId = userRoomIndex.get(socket.data.user.name);
-        const currentRoom = rooms.get(currentRoomId || "");
-        const currentUser = currentRoom?.users.find(user => user.username === socket.data.user.name);
-        callback({ room: currentRoom});
+    const username = socket.data.user.name;
+    const currentRoomId = userRoomIndex.get(username);
+    const currentRoom = rooms.get(currentRoomId || "");
+
+    const positions = currentRoomId
+        ? Object.fromEntries(playerPositions.get(currentRoomId) || [])
+        : {};
+
+    callback({
+        room: currentRoom,
+        positions
     });
+});
 
     socket.on("get-isReady", (callback) => {
         const currentRoomId = userRoomIndex.get(socket.data.user.name);

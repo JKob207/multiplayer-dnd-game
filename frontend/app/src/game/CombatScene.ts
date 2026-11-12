@@ -89,7 +89,7 @@ export default class CombatScene extends Phaser.Scene {
 
   private playerHpText!: Phaser.GameObjects.Text;
   
-  private readonly hitDamage = 2;
+  
   private readonly hitImmunityDuration = 500;
   private lastHitTime = -Infinity;
 

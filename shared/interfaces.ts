@@ -130,6 +130,11 @@ export interface ClientToServerEvents {
     "combat-dodge-hit": () => void;
 
     "combat-dodge-finished": () => void;
+
+    //get seed of dungeon
+    "get-dungeon-seed": (
+        callback: (response: { seed: number | undefined }) => void
+    ) => void;
 }
 
 export interface ServerToClientEvents {

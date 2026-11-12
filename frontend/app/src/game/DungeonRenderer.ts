@@ -18,7 +18,10 @@ export default class DungeonRenderer {
         this.container.setDepth(0);
     }
 
-    render(dungeon: GeneratedDungeon) {
+    render(
+    dungeon: GeneratedDungeon,
+    walls: Phaser.Physics.Arcade.StaticGroup
+    ) {
         this.container.removeAll(true);
 
         const colors: Record<number, number> = {
@@ -35,20 +38,33 @@ export default class DungeonRenderer {
                 if (tile === TileType.Empty) continue;
 
                 const rectangle = this.scene.add.rectangle(
-                    x * this.tileSize,
-                    y * this.tileSize,
-                    this.tileSize,
-                    this.tileSize,
-                    colors[tile] ?? 0xff00ff
-                );
+                x * this.tileSize,
+                y * this.tileSize,
+                this.tileSize,
+                this.tileSize,
+                colors[tile] ?? 0xff00ff
+            );
 
-                rectangle.setOrigin(0, 0);
-                this.container.add(rectangle);
-            }
+            rectangle.setOrigin(0, 0);
+            this.container.add(rectangle);
+
+            if (tile === TileType.Wall) {
+            const wall = walls.create(
+                (x + 0.5) * this.tileSize,
+                (y + 0.5) * this.tileSize
+            );
+
+            wall.setVisible(false);
+            wall.setDisplaySize(this.tileSize, this.tileSize);
+            wall.body.setSize(this.tileSize, this.tileSize);
+            wall.setOrigin(0.5, 0.5);
+            wall.refreshBody();
         }
-    }
+                        }
+                    }
+                }
 
-    destroy() {
-        this.container.destroy();
+                destroy() {
+                    this.container.destroy();
     }
 }

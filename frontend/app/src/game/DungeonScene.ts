@@ -1,4 +1,3 @@
-
 import Phaser from 'phaser';
 import { socket } from '../../socket';
 import Zombie from '../monsters/Zombie';
@@ -8,8 +7,6 @@ import { generateDungeon } from "../../../../server/functions/MapGenerator";
 import type { GeneratedDungeon } from '../../../../server/functions/MapGenerator';
 
 const TILE_SIZE = 32;
-const MAP_WIDTH = 25;
-const MAP_HEIGHT = 18;
 
 
 export default class DungeonScene extends Phaser.Scene {
@@ -90,6 +87,26 @@ export default class DungeonScene extends Phaser.Scene {
       return this.WALL_TILES.right;
   }
 }
+  private getSpawnPosition(index: number) {
+    const spawnRoom = this.dungeon.rooms.find(
+        room => room.type === "spawn"
+    );
+
+    if (!spawnRoom || spawnRoom.tiles.length === 0) {
+        throw new Error("No valid spawn room found!");
+    }
+
+    // Pick a tile inside the spawn room for each player.
+    const tile = spawnRoom.tiles[index % spawnRoom.tiles.length];
+
+    console.log("Spawn room:", spawnRoom);
+  console.log("Spawn tile:", spawnRoom?.tiles[0]);
+
+    return {
+        x: (tile.x + 0.5) * TILE_SIZE,
+        y: (tile.y + 0.5) * TILE_SIZE
+    };
+}
   
   private dungeonRenderer!: DungeonRenderer;
   private generatedDungeon!: GeneratedDungeon;
@@ -114,31 +131,28 @@ export default class DungeonScene extends Phaser.Scene {
   };
   private zombie!: Zombie;
 
+  private dungeon!: GeneratedDungeon;
+
   constructor() {
     super('DungeonScene');
   }
 
   create() {
 
-    console.log("1. DungeonScene create started");
-
     this.dungeonRenderer = new DungeonRenderer(this, 32);
 
-    console.log("2. Requesting dungeon seed");
 
     socket.emit("get-dungeon-seed", (response) => {
-        console.log("3. Seed callback received:", response);
+        
 
         const { seed } = response;
 
         if (seed === undefined) {
-            console.error("4. Server did not return a seed");
+          
             return;
         }
 
-        console.log("5. Starting dungeon generation");
-
-        const dungeon = generateDungeon({
+        this.dungeon = generateDungeon({
             width: 100,
             height: 100,
             floor: 1,
@@ -146,12 +160,20 @@ export default class DungeonScene extends Phaser.Scene {
             extraConnectionChance: 0.35,
             placementAttempts: 200
         });
+        this.physics.world.setBounds(
+            0,
+            0,
+            this.dungeon.width * TILE_SIZE,
+            this.dungeon.height * TILE_SIZE
+        );
 
-        console.log("6. Dungeon generated:", dungeon);
-
-        this.dungeonRenderer.render(dungeon);
-
-        console.log("7. Dungeon rendered");
+        this.cameras.main.setBounds(
+            0,
+            0,
+            this.dungeon.width * TILE_SIZE,
+            this.dungeon.height * TILE_SIZE
+        );
+        this.dungeonRenderer.render(this.dungeon, walls);
     });
 
         //define the frames of animations
@@ -268,23 +290,23 @@ export default class DungeonScene extends Phaser.Scene {
   });
 
     
-    const graphics = this.make.graphics({ x: 0, y: 0 });
+    // const graphics = this.make.graphics({ x: 0, y: 0 });
 
-    graphics.clear();
-    graphics.fillStyle(0x171619);
-    graphics.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
-    graphics.lineStyle(2, 0x49454b);
-    graphics.strokeRect(1, 1, TILE_SIZE - 2, TILE_SIZE - 2);
-    graphics.generateTexture('wall', TILE_SIZE, TILE_SIZE);
+    // graphics.clear();
+    // graphics.fillStyle(0x171619);
+    // graphics.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+    // graphics.lineStyle(2, 0x49454b);
+    // graphics.strokeRect(1, 1, TILE_SIZE - 2, TILE_SIZE - 2);
+    // graphics.generateTexture('wall', TILE_SIZE, TILE_SIZE);
 
-    graphics.clear();
-    graphics.fillStyle(0xc99b65);
-    graphics.fillRect(5, 5, 22, 22);
-    graphics.lineStyle(2, 0x30251e);
-    graphics.strokeRect(5, 5, 22, 22);
-    graphics.generateTexture('player', TILE_SIZE, TILE_SIZE);
+    // graphics.clear();
+    // graphics.fillStyle(0xc99b65);
+    // graphics.fillRect(5, 5, 22, 22);
+    // graphics.lineStyle(2, 0x30251e);
+    // graphics.strokeRect(5, 5, 22, 22);
+    // graphics.generateTexture('player', TILE_SIZE, TILE_SIZE);
 
-    graphics.destroy();
+    // graphics.destroy();
 
     // Draw the dungeon floor and walls.
     const walls = this.physics.add.staticGroup();
@@ -336,12 +358,24 @@ export default class DungeonScene extends Phaser.Scene {
 
       socket.emit("get-room", (res) => {
         res.room?.users.forEach((user) => {
+          const savedPosition = res.positions?.[user.username];
+
+          const spawn = savedPosition ?? this.getSpawnPosition(
+              res.room.users.indexOf(user)
+          );
+
           const player = this.physics.add.sprite(
-            TILE_SIZE * 4,
-            TILE_SIZE * 4,
-            'player',
-          )
+              spawn.x,
+              spawn.y,
+              'player'
+          );
+          player.setBodySize(20, 20);
+          player.setOffset(
+              (player.width + 10) / 2,
+              (player.height + 60) / 2
+          );
           player.name = user.username;
+          player.anims.play("idle-down");
 
           player.setCollideWorldBounds(true);
           if(player.name == name)
