@@ -11,6 +11,7 @@ import type { InterServerEvents, SocketData } from "./interfaces.js";
 import type { ClientToServerEvents, Room, ServerToClientEvents } from "./../shared/interfaces.js"
 import cors from "cors";
 import genUniqueLobbyCode from "./functions/genLobbyCode.js";
+import { generateDungeon, printDungeon } from "./functions/MapGenerator.js";
 
 const app = express();
 dotenv.config();
@@ -21,6 +22,17 @@ app.use(cors())
 const httpServer = createServer(app);
 const rooms = new Map<string, Room>();
 const userRoomIndex = new Map<string, string>();
+
+const dungeon = generateDungeon({
+    width: 100,
+    height: 100,
+    floor: 1,
+    seed: 123456,
+    extraConnectionChance: 0.35,
+    placementAttempts: 200
+});
+
+printDungeon(dungeon);
 
 app.post("/register", async (req, res) => {
     let message = "Something went wrong with the server. We are sorry.";
