@@ -8,10 +8,13 @@ type MonsterClass<T extends Monster> = new (
 ) => T;
 
 export function spawnMonster<T extends Monster>(
-  scene: Phaser.Scene,
-  MonsterType: MonsterClass<T>,
-  x: number,
-  y: number
+    scene: Phaser.Scene,
+    MonsterType: MonsterClass<T>,
+    x: number,
+    y: number,
+    angle: number
 ): T {
-  return new MonsterType(scene, x, y);
+    const monster = new MonsterType(scene, x, y);
+    monster.setAngle(angle);
+    return monster;
 }

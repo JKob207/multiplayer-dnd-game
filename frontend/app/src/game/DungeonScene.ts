@@ -43,6 +43,11 @@ export default class DungeonScene extends Phaser.Scene {
     frameWidth: 64,
     frameHeight: 64
   })
+  //preload zombie death animation
+  this.load.spritesheet('zombie-death', 'sprites/zombie/hurt.png',{
+    frameWidth: 64,
+    frameHeight: 64
+  })
 
 }
 
@@ -130,6 +135,7 @@ export default class DungeonScene extends Phaser.Scene {
     D: Phaser.Input.Keyboard.Key;
   };
   private zombie!: Zombie;
+  private monsters = new Map<string, Monster>();
 
   private dungeon!: GeneratedDungeon;
 
@@ -288,6 +294,15 @@ export default class DungeonScene extends Phaser.Scene {
     frameRate: 2,
     repeat: -1,
   });
+    this.anims.create({
+    key: 'zombie-death',
+    frames: this.anims.generateFrameNumbers('zombie-death', {
+      start: 0,
+      end: 5,
+    }),
+    frameRate: 5,
+    repeat: -1,
+  });
 
     
     // const graphics = this.make.graphics({ x: 0, y: 0 });
@@ -349,6 +364,18 @@ export default class DungeonScene extends Phaser.Scene {
       this.scene.launch("CombatScene", { state });
       this.scene.pause();
     });
+    socket.on("monster-defeated", (monsterId: string) => {
+    console.log("CLIENT: monster defeated", monsterId);
+
+    const monster = this.monsters.get(monsterId);
+
+    console.log("CLIENT: found monster", monster);
+
+    if (!monster) return;
+
+    monster.die();
+    this.monsters.delete(monsterId);
+});
     
     this.other_players = [];
 
@@ -402,7 +429,22 @@ export default class DungeonScene extends Phaser.Scene {
           if (player.name === name) {
             this.player = player;
             this.player.setDepth(10);
-            this.zombie = spawnMonster(this,Zombie,300,300);
+            res.monsters?.forEach((monster) => {
+          switch (monster.type) {
+            case "zombie": {
+              const zombie = spawnMonster(
+                this,
+                Zombie,
+                monster.x,
+                monster.y,
+                monster.angle
+            );
+
+            this.monsters.set(monster.id, zombie);
+            break;
+        }
+    }
+});
             this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
           } else {
             player.setDepth(1);
@@ -522,6 +564,7 @@ export default class DungeonScene extends Phaser.Scene {
     const currTime = this.time.now;
 
     if(currTime - this.lastEmitTime >= 30 && (!this.lastEmittedPos || (this.lastEmittedPos.x !== this.player.x || this.lastEmittedPos.y !== this.player.y))){
+      console.log("CLIENT: sending location", this.player.x, this.player.y);
       socket.emit("send-location", this.player.x, this.player.y);
       this.lastEmitTime = currTime;
       this.lastEmittedPos = { x: this.player.x, y: this.player.y };

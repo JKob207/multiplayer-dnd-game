@@ -237,9 +237,14 @@ io.on("connection", (socket) => {
         ? Object.fromEntries(playerPositions.get(currentRoomId) || [])
         : {};
 
+    const monsters = currentRoomId
+        ? Array.from(roomMonsters.get(currentRoomId)?.values() ?? [])
+        : [];
+
     callback({
         room: currentRoom,
-        positions
+        positions,
+        monsters
     });
 });
 
@@ -270,18 +275,56 @@ io.on("connection", (socket) => {
 
         roomDungeonSeeds.set(roomId, seed);
 
-        const monsters = new Map<string, MonsterState>();
+        const dungeon = generateDungeon({
+    width: 100,
+    height: 100,
+    floor: 1,
+    seed,
+    extraConnectionChance: 0.35,
+    placementAttempts: 200
+});
 
-        monsters.set("zombie_01", {
-            id: "zombie_01",
+const monsters = new Map<string, MonsterState>();
+
+let monsterCounter = 0;
+
+for (const room of dungeon.rooms) {
+    if (room.type !== "basic" || room.tiles.length === 0) {
+        continue;
+    }
+
+    // Each basic room gets 1 or 2 monsters.
+    const monsterCount = Math.min(
+        1 + Math.floor(Math.random() * 2),
+        room.tiles.length
+    );
+
+    // Shuffle the room's available tiles.
+    const availableTiles = [...room.tiles];
+
+    for (let i = availableTiles.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+
+        [availableTiles[i], availableTiles[j]] =
+            [availableTiles[j], availableTiles[i]];
+    }
+
+    for (let i = 0; i < monsterCount; i++) {
+        const tile = availableTiles[i];
+        const id = `monster_${monsterCounter++}`;
+
+        monsters.set(id, {
+            id,
             type: "zombie",
-            x: 300,
-            y: 300,
-            angle: 0,
+            x: (tile.x + 0.5) * 32,
+            y: (tile.y + 0.5) * 32,
+            angle: Math.floor(Math.random() * 4) * 90,
             hp: 100,
             maxHp: 100,
-            mode: "idle",
+            mode: "idle"
         });
+    }
+        }
 
         roomMonsters.set(roomId, monsters);
 
@@ -386,6 +429,7 @@ io.on("connection", (socket) => {
     })
 
     socket.on("send-location", (x, y) => {
+    console.log("SERVER: send-location received", x, y);
     const username = socket.data.user.name;
     const roomId = userRoomIndex.get(username);
 
@@ -403,7 +447,12 @@ io.on("connection", (socket) => {
     const monsters = roomMonsters.get(roomId);
     if (!monsters || combats.has(roomId)) return;
 
+    console.log("Player:", username);
+    console.log("Room:", roomId);
+    console.log("Monsters:", roomMonsters.get(roomId ?? ""));
+
     for (const monster of monsters.values()) {
+        console.log("Checking monster:", monster.id, monster.mode);
         if (monster.mode !== "idle") continue;
 
         const definition = monsterDefinitions[monster.type];
@@ -415,6 +464,12 @@ io.on("connection", (socket) => {
             definition.visionRange,
             definition.visionAngle
         );
+        console.log("Monster:", monster.id);
+        console.log("Monster position:", monster.x, monster.y);
+        console.log("Player position:", x, y);
+        console.log("Vision range:", definition.visionRange);
+        console.log("Vision angle:", definition.visionAngle);
+        console.log("Detected:", detected);
 
         if (detected) {
             startMonsterCombat(roomId, monster);
@@ -478,6 +533,7 @@ socket.on("get-dungeon-seed", (callback) => {
         const state: CombatState = {
             id: roomId,
             roomId,
+            monsterId: monster.id,
             phase: "player-turn",
             players,
             enemy: {
@@ -503,46 +559,57 @@ socket.on("get-dungeon-seed", (callback) => {
     });
 
     // Submit one attack result per player turn.
-    socket.on("combat-attack", (result: AttackResult) => {
-        const username = socket.data.user.name;
-        const roomId = userRoomIndex.get(username);
-        if (!roomId) return;
+   
+socket.on("combat-attack", (result: AttackResult) => {
+    const username = socket.data.user.name;
+    const roomId = userRoomIndex.get(username);
+    if (!roomId) return;
 
-        const state = combats.get(roomId);
-        if (!state || state.phase !== "player-turn") return;
+    const state = combats.get(roomId);
+    if (!state || state.phase !== "player-turn") return;
 
-        const player = state.players[username];
-        if (!player || !player.isAlive || player.hasActed) return;
+    const player = state.players[username];
+    if (!player || !player.isAlive || player.hasActed) return;
 
-        if (!["PERFECT", "GOOD", "MISS"].includes(result)) return;
+    if (!["PERFECT", "GOOD", "MISS"].includes(result)) return;
 
-        player.hasActed = true;
+    player.hasActed = true;
 
-        const damage = {
-            PERFECT: 30,
-            GOOD: 15,
-            MISS: 0,
-        }[result];
+    const damage = {
+        PERFECT: 30,
+        GOOD: 15,
+        MISS: 0,
+    }[result];
 
-        state.enemy.hp -= damage;
+    state.enemy.hp -= damage;
 
-        if (state.enemy.hp <= 0) {
-            state.enemy.hp = 0;
-            state.enemy.isAlive = false;
+    if (state.enemy.hp <= 0) {
+        state.enemy.hp = 0;
+        state.enemy.isAlive = false;
 
-            endCombat(roomId, "victory");
-            return; // Important: don't continue into the enemy-turn logic
+        const monsterId = state.monsterId;
+        const monsters = roomMonsters.get(roomId);
+        const monster = monsters?.get(monsterId);
+
+        if (monster) {
+            monster.mode = "dead";
+            io.to(roomId).emit("monster-defeated", monsterId);
         }
 
-        emitCombatUpdate(roomId, state);
+        endCombat(roomId, "victory");
+        return;
+    }
 
-        const livingPlayers = Object.entries(state.players)
-            .filter(([, player]) => player.isAlive);
+    emitCombatUpdate(roomId, state);
 
-        if (livingPlayers.every(([, player]) => player.hasActed)) {
-            startEnemyTurn(roomId);
-}
-    });
+    const livingPlayers = Object.entries(state.players)
+        .filter(([, player]) => player.isAlive);
+
+    if (livingPlayers.every(([, player]) => player.hasActed)) {
+        startEnemyTurn(roomId);
+    }
+});
+
 
     // Record a hit during this player's dodge arena.
     socket.on("combat-dodge-hit", () => {
@@ -621,6 +688,7 @@ function endCombat(roomId: string, result: "victory" | "defeat") {
     dodgeTimers.delete(roomId);
     dodgeFinished.delete(roomId);
     dodgeHit.delete(roomId);
+    combats.delete(roomId);
 
     io.to(roomId).emit("combat-ended", state);
 }

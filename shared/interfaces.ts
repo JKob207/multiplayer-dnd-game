@@ -9,7 +9,7 @@ export interface Room {
     maxPlayers: number;
     status: string;
 }
-export type MonsterMode = "idle" | "chasing" | "engaged";
+export type MonsterMode = "idle" | "chasing" | "engaged" | "dead";
 
 export interface MonsterDefinition {
     type: string;
@@ -44,6 +44,7 @@ export interface CombatPlayerState {
 
 export interface CombatState {
     id: string;
+    monsterId: string;
     roomId: string;
     phase: 'player-turn' | 'enemy-turn' | 'ended';
 

@@ -7,8 +7,22 @@ export default class Zombie extends Monster {
     
     this.coneColor = 0xff3333;
     this.bodyVisual.setTexture('zombie', 0);
+
     
   }
+
+  die() {
+    if (!this.active) return;
+
+    this.bodyVisual.anims.play("zombie-death", true);
+
+    this.bodyVisual.once(
+        Phaser.Animations.Events.ANIMATION_COMPLETE,
+        () => {
+            this.destroy();
+        }
+    );
+}
 
   update() {
     if (!this.active || !this.bodyVisual?.active) return;
