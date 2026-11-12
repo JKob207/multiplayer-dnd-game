@@ -343,6 +343,10 @@ export default class DungeonScene extends Phaser.Scene {
     this.zombie?.destroy();
 
 });
+    socket.on("combat-started", (state) => {
+    this.scene.launch("CombatScene", { state });
+    this.scene.pause();
+});
 
     socket.on('player-pos-update', (username, {x, y}) => {
       const update = this.other_players.find(player => player.name === username);

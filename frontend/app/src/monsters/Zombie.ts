@@ -11,9 +11,14 @@ export default class Zombie extends Monster {
   }
 
   update() {
-  super.update();
+    if (!this.active || !this.bodyVisual?.active) return;
 
-  this.bodyVisual.anims.play(`zombie-idle-${this.facingDirection}`, true)
+    super.update();
+
+    this.bodyVisual.anims.play(
+        `zombie-idle-${this.facingDirection}`,
+        true
+    );
 }
 
 }

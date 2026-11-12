@@ -1,6 +1,6 @@
-import type { CombatState, AttackResult } from "../../../../shared/interfaces";
 import Phaser from 'phaser';
 import { socket } from "../../socket";
+import type { CombatState, AttackResult } from "../../../../shared/interfaces";
 
 const UI_STYLE = {
   fontFamily: '"Trebuchet MS", sans-serif',
@@ -29,7 +29,6 @@ const UI_STYLE = {
     fontFamily: '"Trebuchet MS", sans-serif',
   },
 };
-
 
 
 export default class CombatScene extends Phaser.Scene {
@@ -80,47 +79,46 @@ export default class CombatScene extends Phaser.Scene {
   };
 
   private monsterHpText!: Phaser.GameObjects.Text;
-  private enemy!: CombatState["enemy"];
+  // private enemy!: CombatState["enemy"];
+  // private combatState!: CombatState;
+  private enemy!: CombatState['enemy'];
   private combatState!: CombatState;
   private username = "";
   private waitingForPlayers = false;
   private monsterNameText!: Phaser.GameObjects.Text;
 
   private playerHpText!: Phaser.GameObjects.Text;
-  private playerHp = 20;
-  private readonly playerMaxHp = 20;
+  
   private readonly hitDamage = 2;
   private readonly hitImmunityDuration = 500;
   private lastHitTime = -Infinity;
 
   private syncCombatState(state: CombatState) {
-  this.combatState = state;
-  this.enemy = state.enemy;
+    this.combatState = state;
+    this.enemy = state.enemy;
 
-  const myPlayer = state.players[this.username];
+    const myPlayer = state.players[this.username];
 
-  if (myPlayer) {
-    this.playerHp = myPlayer.hp;
-
-    if (this.playerHpText?.active) {
-      this.playerHpText.setText(
-        `HP: ${myPlayer.hp} / ${myPlayer.maxHp}`
-      );
+    if (myPlayer && this.playerHpText?.active) {
+        this.playerHpText.setText(
+            `HP: ${myPlayer.hp} / ${myPlayer.maxHp}`
+        );
     }
-  }
 
-  if (this.monsterHpText?.active) {
-    this.monsterHpText.setText(
-      `HP: ${state.enemy.hp} / ${state.enemy.maxHp}`
-    );
-  }
+    if (this.monsterHpText?.active) {
+        this.monsterHpText.setText(
+            `HP: ${state.enemy.hp} / ${state.enemy.maxHp}`
+        );
+    }
 
-  if (this.monsterNameText?.active) {
-    this.monsterNameText.setText(state.enemy.name);
-  }
+    if (this.monsterNameText?.active) {
+        this.monsterNameText.setText(state.enemy.name);
+    }
 }
 
 private showWaitingForPlayers() {
+  this.stopProjectileSpawner();
+  this.projectiles = [];
   this.children.removeAll(true);
   this.menuActive = false;
   this.attackActive = false;
@@ -151,84 +149,121 @@ private showWaitingForPlayers() {
     super('CombatScene');
   }
 
-  create(data: { state: CombatState }) {
-  this.combatState = data.state;
-  this.enemy = data.state.enemy;
+ create(data?: { state?: CombatState }) {
+    const { width, height } = this.scale;
 
-  socket.emit("get-name", ({ name }) => {
-    this.username = name;
-    this.syncCombatState(this.combatState);
-  });
+    this.centerX = width / 2;
+    this.centerY = height / 2;
 
-  const onCombatUpdated = (state: CombatState) => {
-    this.syncCombatState(state);
-  };
+    this.menuActive = false;
+    this.attackActive = false;
+    this.dodgeActive = false;
+    this.waitingForPlayers = false;
 
-  const onCombatPhaseChanged = (state: CombatState) => {
-    this.syncCombatState(state);
+    // Get the authenticated player's username.
+    socket.emit("get-name", ({ name }) => {
+        this.username = name;
 
-    if (state.phase === "enemy-turn") {
-      this.waitingForPlayers = false;
-      this.showEnemyTurn();
-    } else if (state.phase === "player-turn") {
-      this.waitingForPlayers = false;
-      this.showMenu();
-    }
-  };
+        if (this.combatState) {
+            this.syncCombatState(this.combatState);
+        }
+    });
 
-  const onCombatEnded = (state: CombatState) => {
+    const onCombatUpdated = (state: CombatState) => {
+        this.syncCombatState(state);
+    };
+
+    const onCombatPhaseChanged = (state: CombatState) => {
+        this.syncCombatState(state);
+
+        if (state.phase === "enemy-turn") {
+            this.waitingForPlayers = false;
+            this.showEnemyTurn();
+        } else if (state.phase === "player-turn") {
+            this.waitingForPlayers = false;
+
+            const player = state.players[this.username];
+
+            if (player?.isAlive) {
+                this.showMenu();
+            } else {
+                this.showWaitingForPlayers();
+            }
+        }
+    };
+
+    const onCombatEnded = (state: CombatState) => {
     this.combatState = state;
     this.enemy = state.enemy;
 
     if (state.result === "victory") {
-      this.scene.get("DungeonScene").events.emit("enemy-defeated");
+        this.scene.get("DungeonScene").events.emit("enemy-defeated");
     }
 
     this.exitCombat();
-  };
+};
 
-  socket.off("combat-updated");
-  socket.off("combat-phase-changed");
-  socket.off("combat-ended");
+    // Prevent duplicate listeners.
+    socket.off("combat-updated", onCombatUpdated);
+    socket.off("combat-phase-changed", onCombatPhaseChanged);
+    socket.off("combat-ended", onCombatEnded);
 
-  socket.on("combat-updated", onCombatUpdated);
-  socket.on("combat-phase-changed", onCombatPhaseChanged);
-  socket.on("combat-ended", onCombatEnded);
+    socket.on("combat-updated", onCombatUpdated);
+    socket.on("combat-phase-changed", onCombatPhaseChanged);
+    socket.on("combat-ended", onCombatEnded);
 
-  const { width, height } = this.scale;
+    // Remove listeners when this scene shuts down.
+    this.events.once("shutdown", () => {
+        this.attackActive = false;
+        this.dodgeActive = false;
+        this.stopProjectileSpawner();
 
-  this.centerX = width / 2;
-  this.centerY = height / 2;
+        socket.off("combat-updated", onCombatUpdated);
+        socket.off("combat-phase-changed", onCombatPhaseChanged);
+        socket.off("combat-ended", onCombatEnded);
+    });
 
-  this.showMenu();
+    // Use the state passed by DungeonScene, or retrieve it from the server.
+    if (data?.state) {
+        this.syncCombatState(data.state);
+        this.showMenu();
+    } else {
+        socket.emit("get-combat-state", ({ state }) => {
+            if (!state) {
+                console.error("No active combat found.");
+                this.exitCombat();
+                return;
+            }
 
-  
-    if (this.input.keyboard) {
-      this.attackKey = this.input.keyboard.addKey(
-        Phaser.Input.Keyboard.KeyCodes.SPACE
-      );
+            this.syncCombatState(state);
 
-      this.dodgeKeys = this.input.keyboard.addKeys({
-        up: 'W',
-        down: 'S',
-        left: 'A',
-        right: 'D',
-        w: 'UP',
-        a: 'LEFT',
-        s: 'DOWN',
-        d: 'RIGHT',
-      }) as typeof this.dodgeKeys;
+            if (state.phase === "player-turn") {
+                this.showMenu();
+            } else if (state.phase === "enemy-turn") {
+                this.showEnemyTurn();
+            } else {
+                this.exitCombat();
+            }
+        });
     }
 
-    this.events.once('shutdown', () => {
-      this.attackActive = false;
-      this.dodgeActive = false;
-      this.stopProjectileSpawner();
-      socket.off("combat-updated", onCombatUpdated);
-      socket.off("combat-phase-changed", onCombatPhaseChanged);
-      socket.off("combat-ended", onCombatEnded);
-    });
-  }
+    if (this.input.keyboard) {
+        this.attackKey = this.input.keyboard.addKey(
+            Phaser.Input.Keyboard.KeyCodes.SPACE
+        );
+
+        this.dodgeKeys = this.input.keyboard.addKeys({
+            up: 'W',
+            down: 'S',
+            left: 'A',
+            right: 'D',
+            w: 'UP',
+            a: 'LEFT',
+            s: 'DOWN',
+            d: 'RIGHT',
+        }) as typeof this.dodgeKeys;
+    }
+}
 
   update(_time: number, delta: number) {
     // Attack timing minigame
@@ -300,7 +335,7 @@ private showWaitingForPlayers() {
 
     this.playerHpText = this.add.text(
   55, 42,
-  `HP: ${this.playerHp} / ${this.playerMaxHp}`,
+  'HP: -- / --',
   UI_STYLE.hp
 );
 
@@ -339,6 +374,8 @@ private showWaitingForPlayers() {
     this.monsterNameText,
     this.monsterHpText
   ]);
+
+  this.syncCombatState(this.combatState);
 }
 
   private showMenu() {
@@ -510,9 +547,9 @@ private showWaitingForPlayers() {
     this.attackActive = false;
 
     const difference = Math.abs(
-      Phaser.Math.Angle.Wrap(
-        this.handAngle - this.targetAngle
-      )
+        Phaser.Math.Angle.Wrap(
+            this.handAngle - this.targetAngle
+        )
     );
 
     const degrees = Phaser.Math.RadToDeg(difference);
@@ -520,22 +557,20 @@ private showWaitingForPlayers() {
     let result: AttackResult;
 
     if (degrees <= 10) {
-      result = 'PERFECT';
+        result = 'PERFECT';
     } else if (degrees <= 25) {
-      result = 'GOOD';
+        result = 'GOOD';
     } else {
-      result = 'MISS';
+        result = 'MISS';
     }
+
     this.message.setText(result);
 
-    socket.emit("combat-attack", result);
-
-    this.waitingForPlayers = true;
-
-    this.time.delayedCall(1200, () => {
-      this.showWaitingForPlayers();
+    this.time.delayedCall(900, () => {
+        socket.emit("combat-attack", result);
+        this.showWaitingForPlayers();
     });
-  }
+}
 
   // --------------------------------
   // ENEMY TURN
@@ -814,16 +849,16 @@ private damagePlayer() {
     this.stopProjectileSpawner();
 
     const result = this.hasBeenHit
-      ? 'You were hit by the Cave Slime!'
-      : 'You successfully dodged the attack!';
+        ? 'You were hit by the monster!'
+        : 'You successfully dodged the attack!';
 
     this.dodgeMessage.setText(result);
 
     this.time.delayedCall(1000, () => {
-      socket.emit("combat-dodge-finished");
-      this.showWaitingForPlayers();
+        socket.emit("combat-dodge-finished");
+        this.showWaitingForPlayers();
     });
-  }
+}
 
   private stopProjectileSpawner() {
     if (this.projectileEvent) {
@@ -837,6 +872,8 @@ private damagePlayer() {
   // --------------------------------
 
   private exitCombat() {
+    console.log("[CLIENT] Exiting combat scene");
+
     this.attackActive = false;
     this.dodgeActive = false;
     this.stopProjectileSpawner();

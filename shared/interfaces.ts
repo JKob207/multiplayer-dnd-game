@@ -9,6 +9,58 @@ export interface Room {
     maxPlayers: number;
     status: string;
 }
+export type MonsterMode = "idle" | "chasing" | "engaged";
+
+export interface MonsterDefinition {
+    type: string;
+    name: string;
+    maxHp: number;
+    visionRange: number;
+    visionAngle: number;
+    detectionBehavior: "vision" | "proximity";
+}
+
+export interface MonsterState {
+    id: string;
+    type: string;
+    x: number;
+    y: number;
+    angle: number;
+    hp: number;
+    maxHp: number;
+    mode: MonsterMode;
+}
+
+export type AttackResult = 'PERFECT' | 'GOOD' | 'MISS';
+
+export interface CombatPlayerState {
+    hp: number;
+    maxHp: number;
+    mana: number;
+    maxMana: number;
+    hasActed: boolean;
+    isAlive: boolean;
+}
+
+export interface CombatState {
+    id: string;
+    roomId: string;
+    phase: 'player-turn' | 'enemy-turn' | 'ended';
+
+    players: {
+        [username: string]: CombatPlayerState;
+    };
+
+    enemy: {
+        name: string;
+        hp: number;
+        maxHp: number;
+        isAlive: boolean;
+    };
+
+    result?: 'victory' | 'defeat';
+}
+
 
 export interface ClientToServerEvents {
     "get-room": (
@@ -62,6 +114,22 @@ export interface ClientToServerEvents {
         x: number,
         y: number,
     ) => void;
+
+    // Combat events
+
+    "start-combat": () => void;
+
+    "get-combat-state": (
+        callback: (response: {
+            state: CombatState | undefined;
+        }) => void
+    ) => void;
+
+    "combat-attack": (result: AttackResult) => void;
+
+    "combat-dodge-hit": () => void;
+
+    "combat-dodge-finished": () => void;
 }
 
 export interface ServerToClientEvents {
@@ -74,4 +142,14 @@ export interface ServerToClientEvents {
             y: number
         }
     ) => void;
+
+    // Combat events
+
+    "combat-started": (state: CombatState) => void;
+
+    "combat-updated": (state: CombatState) => void;
+
+    "combat-phase-changed": (state: CombatState) => void;
+
+    "combat-ended": (state: CombatState) => void;
 }
