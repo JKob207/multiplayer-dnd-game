@@ -15,6 +15,6 @@ export function spawnMonster<T extends Monster>(
     angle: number
 ): T {
     const monster = new MonsterType(scene, x, y);
-    monster.setAngle(angle);
+    monster.setInitialDirection(angle);
     return monster;
 }

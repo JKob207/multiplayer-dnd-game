@@ -50,6 +50,17 @@ const dodgeTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 const roomDungeonSeeds = new Map<string, number>();
 
+function emitMonsterUpdate(roomId: string) {
+    const monsters = roomMonsters.get(roomId);
+
+    if (!monsters) return;
+
+    io.to(roomId).emit(
+        "monster-update",
+        Array.from(monsters.values())
+    );
+}
+
 
 app.post("/register", async (req, res) => {
     let message = "Something went wrong with the server. We are sorry.";
@@ -289,19 +300,27 @@ const monsters = new Map<string, MonsterState>();
 let monsterCounter = 0;
 
 for (const room of dungeon.rooms) {
-    if (room.type !== "basic" || room.tiles.length === 0) {
+    if (
+        (room.type !== "basic" && room.type !== "boss") ||
+        room.tiles.length === 0
+    ) {
         continue;
     }
 
-    // Each basic room gets 1 or 2 monsters.
-    const monsterCount = Math.min(
-        1 + Math.floor(Math.random() * 2),
-        room.tiles.length
-    );
+    const isBoss = room.type === "boss";
 
-    // Shuffle the room's available tiles.
+    // Boss rooms get exactly one zombie.
+    // Basic rooms get one or two.
+    const monsterCount = isBoss
+        ? 1
+        : Math.min(
+            1 + Math.floor(Math.random() * 2),
+            room.tiles.length
+        );
+
     const availableTiles = [...room.tiles];
 
+    // Shuffle available spawn tiles.
     for (let i = availableTiles.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
 
@@ -310,23 +329,30 @@ for (const room of dungeon.rooms) {
     }
 
     for (let i = 0; i < monsterCount; i++) {
-        const tile = availableTiles[i];
+        const tile = isBoss
+            ? room.tiles[Math.floor(room.tiles.length / 2)]
+            : availableTiles[i];
+
         const id = `monster_${monsterCounter++}`;
+
+        const hp = isBoss ? 300 : 100;
 
         monsters.set(id, {
             id,
             type: "zombie",
+            name: isBoss ? "Boss Zombie" : "Zombie",
             x: (tile.x + 0.5) * 32,
             y: (tile.y + 0.5) * 32,
             angle: Math.floor(Math.random() * 4) * 90,
-            hp: 100,
-            maxHp: 100,
+            hp,
+            maxHp: hp,
             mode: "idle"
         });
     }
-        }
+}
 
         roomMonsters.set(roomId, monsters);
+        emitMonsterUpdate(roomId);
 
         userRoomIndex.set(socket.data.user.name, roomId);
         socket.join(roomId);
@@ -593,6 +619,11 @@ socket.on("combat-attack", (result: AttackResult) => {
 
         if (monster) {
             monster.mode = "dead";
+            emitMonsterUpdate(roomId);
+            io.to(roomId).emit("monster-defeated", monsterId);
+
+            console.log("SERVER: killing monster", monsterId);
+
             io.to(roomId).emit("monster-defeated", monsterId);
         }
 
@@ -689,6 +720,7 @@ function endCombat(roomId: string, result: "victory" | "defeat") {
     dodgeFinished.delete(roomId);
     dodgeHit.delete(roomId);
     combats.delete(roomId);
+    
 
     io.to(roomId).emit("combat-ended", state);
 }
@@ -788,6 +820,7 @@ function startMonsterCombat(roomId: string, monster: MonsterState) {
     const state: CombatState = {
         id: `${roomId}_${monster.id}`,
         roomId,
+        monsterId: monster.id,
         phase: "player-turn",
         players,
         enemy: {

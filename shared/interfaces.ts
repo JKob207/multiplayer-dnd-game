@@ -23,6 +23,7 @@ export interface MonsterDefinition {
 export interface MonsterState {
     id: string;
     type: string;
+    name: string;
     x: number;
     y: number;
     angle: number;
@@ -158,4 +159,8 @@ export interface ServerToClientEvents {
     "combat-phase-changed": (state: CombatState) => void;
 
     "combat-ended": (state: CombatState) => void;
+
+    "monster-defeated": (monsterId: string) => void;
+
+    "monster-update": (monsters: MonsterState[]) => void;
 }

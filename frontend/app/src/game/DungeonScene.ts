@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { socket } from '../../socket';
 import Zombie from '../monsters/Zombie';
+import Monster from '../monsters/Monster';
+import type { MonsterState } from '../../../../shared/interfaces';
 import { spawnMonster } from '../monsters/SpawnMonster';
 import DungeonRenderer from "./DungeonRenderer";
 import { generateDungeon } from "../../../../server/functions/MapGenerator";
@@ -16,6 +18,11 @@ export default class DungeonScene extends Phaser.Scene {
 
   //preload floor textures
   this.load.spritesheet('dungeon-floors', 'tiles/dungeon-floors.png',{
+    frameWidth:16,
+    frameHeight:16
+  });
+
+  this.load.spritesheet('dungeon-utilities', 'tiles/dungeon-utilities.png',{
     frameWidth:16,
     frameHeight:16
   });
@@ -64,34 +71,7 @@ export default class DungeonScene extends Phaser.Scene {
       right: 3,
     };
 
-  //helper function to distinguish wall tiles, will need tweaking for new room system
-  private getWallTile(x: number, y: number): number {
-  switch (true) {
-    case x === 0 && y === 0:
-      return this.WALL_TILES.topLeft;
 
-    case x === MAP_WIDTH - 1 && y === 0:
-      return this.WALL_TILES.topRight;
-
-    case x === 0 && y === MAP_HEIGHT - 1:
-      return this.WALL_TILES.bottomLeft;
-
-    case x === MAP_WIDTH - 1 && y === MAP_HEIGHT - 1:
-      return this.WALL_TILES.bottomRight;
-
-    case y === 0:
-      return this.WALL_TILES.top;
-
-    case y === MAP_HEIGHT - 1:
-      return this.WALL_TILES.bottom;
-
-    case x === 0:
-      return this.WALL_TILES.left;
-
-    default:
-      return this.WALL_TILES.right;
-  }
-}
   private getSpawnPosition(index: number) {
     const spawnRoom = this.dungeon.rooms.find(
         room => room.type === "spawn"
@@ -301,7 +281,7 @@ export default class DungeonScene extends Phaser.Scene {
       end: 5,
     }),
     frameRate: 5,
-    repeat: -1,
+    repeat: 0,
   });
 
     
@@ -439,7 +419,7 @@ export default class DungeonScene extends Phaser.Scene {
                 monster.y,
                 monster.angle
             );
-
+            zombie.setMonsterName(monster.name);
             this.monsters.set(monster.id, zombie);
             break;
         }

@@ -9,12 +9,43 @@ export default class Monster extends Phaser.GameObjects.Container {
   protected MonsterAngle = 0;
   protected facingDirection: 'up' | 'down' | 'left' | 'right' = 'right';
 
-  protected mode: "idle" | "chasing" | "engaged" = "idle";
+  protected mode: "idle" | "chasing" | "engaged" | "dead" = "idle";
 
   protected visionRange = 150;
   protected visionAngle = Math.PI / 6;
   protected coneColor = 0xff3333;
 
+  protected nameText: Phaser.GameObjects.Text;
+  
+  setMonsterName(name: string) {
+    this.nameText.setText(name);
+}
+
+  setInitialDirection(angle: number) {
+    const directions: Record<number, 'up' | 'left' | 'down' | 'right'> = {
+        0: 'right',
+        90: 'down',
+        180: 'left',
+        270: 'up'
+    };
+
+    const coneAngles: Record<number, number> = {
+        0: 0,          // right
+        90: Math.PI / 2,     // down
+        180: Math.PI,              // left
+        270: -Math.PI / 2    // up
+    };
+
+    this.facingDirection = directions[angle] ?? 'down';
+
+    this.bodyVisual.anims.play(
+        `zombie-idle-${this.facingDirection}`,
+        true
+    );
+
+    this.MonsterAngle = coneAngles[angle] ?? 0;
+    this.drawVisionCone();
+}
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);
 
@@ -24,22 +55,34 @@ export default class Monster extends Phaser.GameObjects.Container {
     scene.add.existing(this);
 
     this.visionCone = scene.add.graphics();
-    this.bodyVisual = scene.add.sprite(0, 0, 'zombie', 0);
+    this.bodyVisual = scene.add.sprite(0, 0, 'zombie-idle', 0);
     this.add([this.visionCone, this.bodyVisual]);
+    this.nameText = scene.add.text(0, -28, "Zombie", {
+    fontSize: "12px",
+    color: "#ffffff",
+    stroke: "#000000",
+    strokeThickness: 3
+});
+
+this.nameText.setOrigin(0.5);
+this.add(this.nameText);
+
+  this.nameText.setOrigin(0.5);
+  this.add(this.nameText);
 
     this.setDepth(3);
-    this.drawVisionCone();
   }
+
+  
 
   setServerState(state: {
     x: number;
     y: number;
     angle: number;
-    mode: "idle" | "chasing" | "engaged";
+    mode: "idle" | "chasing" | "engaged" | "dead";
   }) {
     this.targetX = state.x;
     this.targetY = state.y;
-    this.MonsterAngle = state.angle;
     this.mode = state.mode;
   }
 
@@ -64,6 +107,7 @@ export default class Monster extends Phaser.GameObjects.Container {
 
     this.visionCone.closePath();
     this.visionCone.fillPath();
+    
   }
 
   update() {
