@@ -7,6 +7,7 @@ type RegisterProps = {
 }
 
 export default function Register({ onSwitch, onSuccess } : RegisterProps ) {
+  const SERVER_URL = import.meta.env.VITE_SERVER_URL;
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -23,7 +24,7 @@ export default function Register({ onSwitch, onSuccess } : RegisterProps ) {
       return;
     }
 
-    fetch("http://localhost:3000/register", {
+    fetch(`${SERVER_URL}/register`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
