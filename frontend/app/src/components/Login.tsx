@@ -13,6 +13,7 @@ type AuthResponse = {
 };
 
 export default function Login({ onSwitch, onSuccess }: LoginProps) {
+  const SERVER_URL = import.meta.env.VITE_SERVER_URL;
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -24,7 +25,7 @@ export default function Login({ onSwitch, onSuccess }: LoginProps) {
     console.log("Login:", login);
     console.log("Password submitted");
 
-    fetch("http://localhost:3000/login", {
+    fetch(`${SERVER_URL}/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
