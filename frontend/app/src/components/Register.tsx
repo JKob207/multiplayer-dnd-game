@@ -1,13 +1,19 @@
 import { useState } from "react";
+import type { SubmitEvent } from 'react';
 
-export default function Register({ onSwitch }) {
+type RegisterProps = {
+  onSwitch: () => void;
+  onSuccess: () => void;
+}
+
+export default function Register({ onSwitch, onSuccess } : RegisterProps ) {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
 
-  function handleSubmit(e) {
+  function handleSubmit(e:SubmitEvent) {
     e.preventDefault();
 
     setError("");
@@ -34,12 +40,17 @@ export default function Register({ onSwitch }) {
         throw new Error('connection error.')
       })
       .then(data => {
-        console.log(data.message)
-        onSwitch(); //jakby sie dalo zwiekszyc predkosc hmur podczas tej funkcji, zeby bylo plynne przejscie pomiedzy formularzami to byloby super
-      })
+      console.log(data.message);
+
+      setEmail("");
+      setUsername("");
+      setPassword("");
+      setConfirmPassword("");
+
+      onSuccess();
+    })
       .catch(e => console.error(e));
 
-    console.log("Registration form submitted");
     setEmail("");
     setUsername("");
     setPassword("");

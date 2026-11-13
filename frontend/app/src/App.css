@@ -9,6 +9,7 @@ body,
   width: 100%;
   min-height: 100%;
   margin: 0;
+  overflow: hidden;
 }
 
 body {
@@ -18,16 +19,6 @@ body {
 .app {
   position: relative;
   min-height: 100vh;
-}
-
-.page-content {
-  position: relative;
-  z-index: 1;
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
 }
 
 .login-container {
@@ -110,6 +101,42 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+}
+.success-popup {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  padding: 14px 24px;
+  background-color: #d1fae5;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  animation: popup-appear 0.25s ease-out;
 }
 
+@keyframes popup-appear {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.game_div{
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.game-div canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
