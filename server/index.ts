@@ -22,7 +22,14 @@ dotenv.config();
 const port = process.env.PORT ? Number(process.env.PORT) : 3000;
 await initDb();
 app.use(express.json());
-app.use(cors())
+const allowedOrigins = [
+    "http://localhost:5173",
+    "https://multiplayer-dnd-game-demo.vercel.app"
+];
+
+app.use(cors({
+    origin: allowedOrigins
+}));
 const httpServer = createServer(app);
 const rooms = new Map<string, Room>();
 //store player positions, so we can check for encounters
@@ -189,7 +196,10 @@ app.post("/login", async (req, res) => {
 
 const io = new Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>(httpServer, {
     cors: {
-        origin: "*",
+        origin: [
+            "http://localhost:5173",
+            "https://multiplayer-dnd-game-demo.vercel.app"
+        ],
         methods: ["GET", "POST"],
         credentials: true
     }
