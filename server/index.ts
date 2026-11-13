@@ -840,6 +840,6 @@ function startMonsterCombat(roomId: string, monster: MonsterState) {
 
 
 
-httpServer.listen(port, () => {
+httpServer.listen(port,"0.0.0.0", () => {
     console.log(`http://localhost:${port}`)
 })
