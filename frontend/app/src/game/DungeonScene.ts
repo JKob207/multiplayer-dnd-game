@@ -4,7 +4,7 @@ import Zombie from '../monsters/Zombie';
 import Monster from '../monsters/Monster';
 import type { MonsterState } from '../../../../shared/interfaces';
 import { spawnMonster } from '../monsters/SpawnMonster';
-import DungeonRenderer from "./DungeonRenderer";
+import DungeonRenderer from "../../../../shared/DungeonRenderer";
 import { generateDungeon } from "../../../../server/functions/MapGenerator";
 import type { GeneratedDungeon } from '../../../../server/functions/MapGenerator';
 

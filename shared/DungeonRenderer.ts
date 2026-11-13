@@ -3,7 +3,7 @@ import Phaser from "phaser";
 import {
     TileType,
     type GeneratedDungeon
-} from "../../../../server/functions/MapGenerator";
+} from "../server/functions/MapGenerator";
 
 export default class DungeonRenderer {
     private scene: Phaser.Scene;
